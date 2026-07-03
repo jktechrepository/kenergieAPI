@@ -1,0 +1,97 @@
+## ═══════════════════════════════════════════════════════════════
+## .NET Core / ASP.NET Core
+## ═══════════════════════════════════════════════════════════════
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+# Visual Studio cache/options directory
+.vscode/
+*.code-workspace
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## ═══════════════════════════════════════════════════════════════
+## 📝 SERILOG - Fichiers de logs (NE PAS VERSIONNER)
+## ═══════════════════════════════════════════════════════════════
+
+logs/
+*.log
+log-*.txt
+errors-*.txt
+
+## ═══════════════════════════════════════════════════════════════
+## 🔐 Fichiers sensibles (Firebase, Secrets)
+## ═══════════════════════════════════════════════════════════════
+
+firebase-credentials.json
+*-firebase-adminsdk-*.json
+.env
+!/.env.example
+appsettings.Development.json
+appsettings.Production.json
+*.pfx
+*.key
+
+# Secrets
+secrets.json
+appsettings.*.json
+appsettings.json.backup
+
+# Ignore appsettings (sauf le template)
+appsettings.json
+!appsettings.template.json
+
+# Binaires / artefacts locaux
+*.dll
+*.exe
+
+# Fichiers Excel métier sensibles (racine du repo)
+/*.xlsx
+
+## ═══════════════════════════════════════════════════════════════
+## Autres fichiers à ignorer
+## ═══════════════════════════════════════════════════════════════
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
