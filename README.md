@@ -207,34 +207,15 @@ Le contexte Entity Framework configure toutes les relations entre les entités a
 
 ## Installation et Démarrage
 
-1. Cloner le repository Bitbucket :
-   ```bash
-   git clone https://bitbucket.org/kansabusiness/cre-seko-api.git
-   cd cre-seko-api
-   ```
-2. Copier le template de configuration (les fichiers `appsettings*.json` ne sont pas versionnés) :
-   ```bash
-   cp appsettings.template.json appsettings.Development.json
-   # puis renseigner ConnectionStrings, Jwt, Firebase, etc.
-   ```
-3. Restaurer les dépendances et appliquer les migrations Entity Framework :
-   ```bash
-   dotnet restore
-   dotnet ef database update
-   ```
-4. Lancer l'application :
-   ```bash
-   dotnet run
-   ```
-
-L'API sera accessible sur `http://localhost:5000` (ou le port configuré dans `appsettings.Development.json`). Swagger : `/swagger`.
-
-### Premier push (maintenance)
-
-Remote configuré : `https://bitbucket.org/kansabusiness/cre-seko-api.git`
+1. Cloner le repository
+2. Configurer la chaîne de connexion dans `appsettings.json`
+3. Exécuter les migrations Entity Framework
+4. Lancer l'application
 
 ```bash
-git push -u origin main
+dotnet restore
+dotnet build
+dotnet run
 ```
 
-Authentification Bitbucket (HTTPS) : utiliser un **App Password** ou **Repository Access Token** avec droit `repository:write`. Ne pas committer les tokens dans l'URL du remote.
+L'API sera accessible sur `http://192.168.43.139:5002` et la documentation Swagger sur `http://192.168.43.139:5002/swagger`.
