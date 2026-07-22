@@ -43,6 +43,11 @@ namespace Kenergie.Models.DTOs.Statistiques
         /// Date de génération des statistiques
         /// </summary>
         public DateTime DateGeneration { get; set; } = DateTime.Now;
+
+        /// <summary>
+        /// Code ISO de la devise principale de la société (agrégats consolidés).
+        /// </summary>
+        public string? CodeDevisePrincipale { get; set; }
     }
 
     /// <summary>
@@ -70,6 +75,11 @@ namespace Kenergie.Models.DTOs.Statistiques
         /// Montant total dû
         /// </summary>
         public decimal MontantDu { get; set; }
+
+        /// <summary>
+        /// Code ISO de la devise principale (montants consolidés).
+        /// </summary>
+        public string? CodeDevisePrincipale { get; set; }
 
         /// <summary>
         /// Évolution mensuelle des montants

@@ -11,6 +11,7 @@ namespace Kenergie.Models.DTOs
         public List<TopAgentCollecteurDto> Top10AgentsCollecteurs { get; set; } = new();
         public TendancesFinancieresDto Tendances { get; set; } = new();
         public DateTime DateGeneration { get; set; } = DateTime.UtcNow;
+        public string? CodeDevisePrincipale { get; set; }
     }
 
     public class GlobalFinancierStatistiquesDto

@@ -552,6 +552,14 @@ namespace Kenergie.Migrations
                     b.Property<int?>("Annees")
                         .HasColumnType("int");
 
+                    b.Property<string>("CodeDevisePrincipale")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<string>("CodeDevisePrix")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
                     b.Property<DateTime>("DateCreation")
                         .HasColumnType("datetime(6)");
 
@@ -583,7 +591,13 @@ namespace Kenergie.Migrations
                     b.Property<decimal?>("Montant")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("MontantDevisePrincipale")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal?>("MontantDu")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MontantDuDevisePrincipale")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("MontantPaye")
@@ -591,10 +605,16 @@ namespace Kenergie.Migrations
                         .HasColumnType("decimal(18,2)")
                         .HasDefaultValue(0m);
 
+                    b.Property<decimal?>("MontantPayeDevisePrincipale")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<bool>("Statut")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
                         .HasDefaultValue(true);
+
+                    b.Property<decimal?>("TauxVersDevisePrincipale")
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("nombreBatiment")
                         .HasColumnType("int");
@@ -756,6 +776,49 @@ namespace Kenergie.Migrations
                     b.ToTable("CommunicationCampaigns");
                 });
 
+            modelBuilder.Entity("Kenergie.Models.DeviseMonetaire", b =>
+                {
+                    b.Property<int>("IdDeviseMonetaire")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("CodeDevise")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<DateTime>("DateCreation")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DateModification")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("IdSociete")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Libelle")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("Statut")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Symbole")
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)");
+
+                    b.HasKey("IdDeviseMonetaire");
+
+                    b.HasIndex("IdSociete", "CodeDevise")
+                        .IsUnique()
+                        .HasDatabaseName("UX_DevisesMonetaires_Societe_Code");
+
+                    b.ToTable("DevisesMonetaires", (string)null);
+                });
+
             modelBuilder.Entity("Kenergie.Models.DiffusionStatistique", b =>
                 {
                     b.Property<int>("IdDiffusionStatistique")
@@ -816,6 +879,14 @@ namespace Kenergie.Migrations
                     b.Property<int>("AnneesEmission")
                         .HasColumnType("int");
 
+                    b.Property<string>("CodeDevisePrincipale")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<string>("CodeDevisePrix")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
                     b.Property<DateTime>("DateCreation")
                         .HasColumnType("datetime(6)");
 
@@ -841,6 +912,9 @@ namespace Kenergie.Migrations
                     b.Property<decimal?>("Montant")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("MontantDevisePrincipale")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("NumeroFacture")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)")
@@ -850,6 +924,9 @@ namespace Kenergie.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
                         .HasDefaultValue(true);
+
+                    b.Property<decimal?>("TauxVersDevisePrincipale")
+                        .HasColumnType("decimal(18,6)");
 
                     b.HasKey("IdFacture");
 
@@ -1008,6 +1085,14 @@ namespace Kenergie.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("varchar(36)");
 
+                    b.Property<string>("CodeDevisePaiement")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<string>("CodeDevisePrincipale")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
                     b.Property<string>("Commentaire")
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
@@ -1046,7 +1131,13 @@ namespace Kenergie.Migrations
                     b.Property<decimal?>("MontantAPaye")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("MontantAPayeDevisePrincipale")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("MontantPaye")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("MontantPayeDevisePrincipale")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("ReferenceTransaction")
@@ -1056,10 +1147,16 @@ namespace Kenergie.Migrations
                     b.Property<decimal?>("ResteAPaye")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("ResteAPayeDevisePrincipale")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Statut")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
+
+                    b.Property<decimal?>("TauxVersDevisePrincipale")
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -1450,6 +1547,10 @@ namespace Kenergie.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<string>("CodeDevisePrincipale")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
                     b.Property<DateTime>("DateCreation")
                         .HasColumnType("datetime(6)");
 
@@ -1493,6 +1594,42 @@ namespace Kenergie.Migrations
                     b.HasKey("IdSociete");
 
                     b.ToTable("Societes");
+                });
+
+            modelBuilder.Entity("Kenergie.Models.TauxChange", b =>
+                {
+                    b.Property<int>("IdTauxChange")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("CodeDeviseCible")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<string>("CodeDeviseSource")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<DateTime>("DateCreation")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("DateEffet")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("IdSociete")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Taux")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.HasKey("IdTauxChange");
+
+                    b.HasIndex("IdSociete", "CodeDeviseSource", "CodeDeviseCible", "DateEffet")
+                        .HasDatabaseName("IX_TauxChanges_Societe_Paired_DateEffet");
+
+                    b.ToTable("TauxChanges", (string)null);
                 });
 
             modelBuilder.Entity("Kenergie.Models.TypeDeCourant", b =>
@@ -1919,6 +2056,17 @@ namespace Kenergie.Migrations
                     b.Navigation("UtilisateurCreateur");
                 });
 
+            modelBuilder.Entity("Kenergie.Models.DeviseMonetaire", b =>
+                {
+                    b.HasOne("Kenergie.Models.Societe", "Societe")
+                        .WithMany()
+                        .HasForeignKey("IdSociete")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Societe");
+                });
+
             modelBuilder.Entity("Kenergie.Models.DiffusionStatistique", b =>
                 {
                     b.HasOne("Kenergie.Models.CategorieClient", "CategorieClient")
@@ -2107,6 +2255,17 @@ namespace Kenergie.Migrations
                         .HasForeignKey("UtilisateurIdUtilisateur");
 
                     b.Navigation("Utilisateur");
+                });
+
+            modelBuilder.Entity("Kenergie.Models.TauxChange", b =>
+                {
+                    b.HasOne("Kenergie.Models.Societe", "Societe")
+                        .WithMany()
+                        .HasForeignKey("IdSociete")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Societe");
                 });
 
             modelBuilder.Entity("Kenergie.Models.Usage", b =>

@@ -70,7 +70,7 @@ namespace Kenergie.Services
             var caMoisEnCours = await _context.Paiements
                 .Where(p => !p.IsDeleted && p.DatePaiement.Month == DateTime.Now.Month && 
                        p.DatePaiement.Year == DateTime.Now.Year)
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
             // Taux de recouvrement du mois en cours
             var currentMonthNum = DateTime.Now.Month.ToString();
@@ -121,7 +121,7 @@ namespace Kenergie.Services
                 var caMois = await _context.Paiements
                     .Where(p => !p.IsDeleted && p.DatePaiement.Month == DateTime.Now.Month && 
                            p.DatePaiement.Year == DateTime.Now.Year && p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value))
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 // Taux de recouvrement
                 var currentMonthNum = DateTime.Now.Month.ToString();
@@ -319,7 +319,7 @@ namespace Kenergie.Services
             {
                 return await _context.Paiements
                     .Where(p => !p.IsDeleted && p.DatePaiement.Month == mois && p.DatePaiement.Year == annee)
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
             });
 
             var recouvrementTendances = await GetTendanceMensuelleAsync(async (mois, annee) =>
@@ -386,8 +386,8 @@ namespace Kenergie.Services
         {
             if (!factures.Any()) return 0;
 
-            var montantTotal = factures.Sum(f => f.Montant ?? 0);
-            var montantRecouvre = factures.Where(f => f.Statut).Sum(f => f.MontantPaye ?? 0);
+            var montantTotal = factures.Sum(f => (f.MontantDevisePrincipale ?? f.Montant ?? 0));
+            var montantRecouvre = factures.Where(f => f.Statut).Sum(f => (f.MontantPayeDevisePrincipale ?? f.MontantPaye ?? 0));
 
             return montantTotal > 0 ? (montantRecouvre / montantTotal) * 100 : 0;
         }
@@ -402,7 +402,7 @@ namespace Kenergie.Services
             var caMoisPrecedent = await _context.Paiements
                 .Where(p => !p.IsDeleted && p.DatePaiement.Month == DateTime.Now.AddMonths(-1).Month && 
                        p.DatePaiement.Year == DateTime.Now.AddMonths(-1).Year && p.IdClient.HasValue)
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
             return caMoisPrecedent > 0 ? ((caActuel - caMoisPrecedent) / caMoisPrecedent) * 100 : 0;
         }

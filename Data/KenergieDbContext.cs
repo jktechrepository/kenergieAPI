@@ -40,12 +40,19 @@ namespace Kenergie.Data
         public DbSet<Facture> Factures { get; set; }
         public DbSet<Paiement> Paiements { get; set; }
         public DbSet<ClientFacture> ClientFactures { get; set; }
+        public DbSet<DeviseMonetaire> DevisesMonetaires { get; set; }
+        public DbSet<TauxChange> TauxChanges { get; set; }
         public DbSet<DiffusionStatistique> DiffusionStatistiques { get; set; }
         public DbSet<PanneSignalement> PanneSignalements { get; set; }
         public DbSet<CommunicationCampaign> CommunicationCampaigns { get; set; }
         public DbSet<PlainteClient> PlainteClients { get; set; }
         public DbSet<ClientCrashed> ClientsCrashed { get; set; }
         public DbSet<ArriereeCrashed> ArriereesCrashed { get; set; }
+        public DbSet<InfoPaiementSociete> InfosPaiementSociete { get; set; }
+        public DbSet<PaiementElectroniqueEnAttente> PaiementsElectroniquesEnAttente { get; set; }
+        public DbSet<TransactionFlexPay> TransactionsFlexPay { get; set; }
+        public DbSet<CallbackFlexPay> CallbacksFlexPay { get; set; }
+        public DbSet<PaiementHold> PaiementHolds { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -516,6 +523,94 @@ namespace Kenergie.Data
             modelBuilder.Entity<ClientFacture>()
                 .HasIndex(cf => cf.DateEmission)
                 .HasDatabaseName("IX_ClientFacture_DateEmission");
+
+            // Configuration DeviseMonetaire
+            modelBuilder.Entity<DeviseMonetaire>()
+                .ToTable("DevisesMonetaires");
+
+            modelBuilder.Entity<DeviseMonetaire>()
+                .HasOne(d => d.Societe)
+                .WithMany()
+                .HasForeignKey(d => d.IdSociete)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<DeviseMonetaire>()
+                .HasIndex(d => new { d.IdSociete, d.CodeDevise })
+                .IsUnique()
+                .HasDatabaseName("UX_DevisesMonetaires_Societe_Code");
+
+            modelBuilder.Entity<DeviseMonetaire>()
+                .Property(d => d.CodeDevise)
+                .IsRequired()
+                .HasMaxLength(3);
+
+            modelBuilder.Entity<DeviseMonetaire>()
+                .Property(d => d.Statut)
+                .HasDefaultValue(true);
+
+            // Configuration TauxChange
+            modelBuilder.Entity<TauxChange>()
+                .ToTable("TauxChanges");
+
+            modelBuilder.Entity<TauxChange>()
+                .HasOne(t => t.Societe)
+                .WithMany()
+                .HasForeignKey(t => t.IdSociete)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TauxChange>()
+                .HasIndex(t => new { t.IdSociete, t.CodeDeviseSource, t.CodeDeviseCible, t.DateEffet })
+                .HasDatabaseName("IX_TauxChanges_Societe_Paired_DateEffet");
+
+            modelBuilder.Entity<TauxChange>()
+                .Property(t => t.Taux)
+                .HasColumnType("decimal(18,6)");
+
+            modelBuilder.Entity<Societe>()
+                .Property(s => s.CodeDevisePrincipale)
+                .HasMaxLength(3);
+
+            // FlexPay
+            modelBuilder.Entity<InfoPaiementSociete>(e =>
+            {
+                e.ToTable("InfosPaiementSociete");
+                e.HasOne(x => x.Societe).WithMany().HasForeignKey(x => x.IdSociete).OnDelete(DeleteBehavior.Cascade);
+                e.HasIndex(x => x.IdSociete).HasDatabaseName("IX_InfosPaiementSociete_IdSociete");
+            });
+
+            modelBuilder.Entity<PaiementElectroniqueEnAttente>(e =>
+            {
+                e.ToTable("PaiementsElectroniquesEnAttente");
+                e.HasOne(x => x.Societe).WithMany().HasForeignKey(x => x.IdSociete).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.Client).WithMany().HasForeignKey(x => x.IdClient).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.ClientFacture).WithMany().HasForeignKey(x => x.IdClientFacture).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.Facture).WithMany().HasForeignKey(x => x.IdFacture).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.PaiementFinalise).WithMany().HasForeignKey(x => x.IdPaiementFinalise).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+                e.HasIndex(x => x.OrderNumber).HasDatabaseName("IX_PaiementElectronique_OrderNumber");
+                e.HasIndex(x => x.Reference).IsUnique().HasDatabaseName("UX_PaiementElectronique_Reference");
+                e.HasIndex(x => new { x.IdSociete, x.Statut }).HasDatabaseName("IX_PaiementElectronique_Societe_Statut");
+            });
+
+            modelBuilder.Entity<TransactionFlexPay>(e =>
+            {
+                e.ToTable("TransactionsFlexPay");
+                e.HasOne(x => x.Pending).WithMany().HasForeignKey(x => x.IdPaiementElectroniqueEnAttente).OnDelete(DeleteBehavior.Cascade);
+                e.HasIndex(x => x.OrderNumber).HasDatabaseName("IX_TransactionFlexPay_OrderNumber");
+            });
+
+            modelBuilder.Entity<CallbackFlexPay>(e =>
+            {
+                e.ToTable("CallbacksFlexPay");
+                e.HasIndex(x => x.OrderNumber).HasDatabaseName("IX_CallbackFlexPay_OrderNumber");
+                e.HasIndex(x => x.DateReception).HasDatabaseName("IX_CallbackFlexPay_DateReception");
+            });
+
+            modelBuilder.Entity<PaiementHold>(e =>
+            {
+                e.ToTable("PaiementHolds");
+                e.HasOne(x => x.Pending).WithMany().HasForeignKey(x => x.IdPaiementElectroniqueEnAttente).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+                e.HasIndex(x => new { x.IdSociete, x.CleRessource, x.EstLibere }).HasDatabaseName("IX_PaiementHold_Societe_Cle");
+            });
 
             // Contrainte unique pour éviter les doublons (même client, même facture)
             // Note: Permet NULL pour IdFacture (arriérés pré-existants), donc on ne peut pas utiliser IsUnique

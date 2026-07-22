@@ -99,9 +99,28 @@ namespace Kenergie.Services
         public async Task<Societe> CreateAsync(Societe societe)
         {
             societe.DateCreation = DateTime.Now;
+            if (string.IsNullOrWhiteSpace(societe.CodeDevisePrincipale))
+                societe.CodeDevisePrincipale = "CDF";
             
             _context.Societes.Add(societe);
             await _context.SaveChangesAsync();
+
+            var codePrincipale = societe.CodeDevisePrincipale.Trim().ToUpperInvariant();
+            var deviseExists = await _context.DevisesMonetaires
+                .AnyAsync(d => d.IdSociete == societe.IdSociete && d.CodeDevise == codePrincipale);
+            if (!deviseExists)
+            {
+                _context.DevisesMonetaires.Add(new DeviseMonetaire
+                {
+                    IdSociete = societe.IdSociete,
+                    CodeDevise = codePrincipale,
+                    Libelle = codePrincipale == "CDF" ? "Franc congolais" : codePrincipale,
+                    Symbole = codePrincipale == "CDF" ? "FC" : codePrincipale,
+                    Statut = true,
+                    DateCreation = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+            }
             
             // ? LOGIQUE CORRIG�E : Cr�er d'abord un Agent (gérant), puis un Utilisateur li� � cet Agent
             await CreateDefaultGerantAgentAsync(societe);

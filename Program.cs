@@ -237,6 +237,17 @@ builder.Services.AddScoped<IClientRepository, ClientService>();
 builder.Services.AddScoped<IFactureRepository, FactureService>();
 builder.Services.AddScoped<IPaiementRepository, PaiementService>();
 builder.Services.AddScoped<IClientFactureRepository, ClientFactureService>();
+builder.Services.AddScoped<IDeviseConversionService, DeviseConversionService>();
+builder.Services.AddScoped<IDeviseRepository, DeviseService>();
+builder.Services.Configure<Kenergie.Models.Configuration.FlexPayOptions>(
+    builder.Configuration.GetSection(Kenergie.Models.Configuration.FlexPayOptions.SectionName));
+builder.Services.AddHttpClient("FlexPay", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
+builder.Services.AddScoped<Kenergie.Services.FlexPay.IFlexPayHttpService, Kenergie.Services.FlexPay.FlexPayHttpService>();
+builder.Services.AddScoped<Kenergie.Services.FlexPay.IInfoPaiementSocieteService, Kenergie.Services.FlexPay.InfoPaiementSocieteService>();
+builder.Services.AddScoped<Kenergie.Services.FlexPay.IPaiementElectroniqueService, Kenergie.Services.FlexPay.PaiementElectroniqueService>();
 builder.Services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceService>();
 builder.Services.AddScoped<FactureNotificationService>(); // Service de diffusion multi-canal des factures
 builder.Services.AddScoped<ArrieresService>(); // Service de suivi des arriérés

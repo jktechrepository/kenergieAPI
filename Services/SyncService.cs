@@ -1,6 +1,8 @@
 using Kenergie.Data;
+using Kenergie.Helpers;
 using Kenergie.Models;
 using Kenergie.Models.DTOs.Sync;
+using Kenergie.Services.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
@@ -16,17 +18,20 @@ namespace Kenergie.Services
         private readonly KenergieDbContext _context;
         private readonly IWatermarkService _watermarkService;
         private readonly ICursorService _cursorService;
+        private readonly IDeviseConversionService _deviseConversionService;
         private readonly ILogger<SyncService> _logger;
 
         public SyncService(
             KenergieDbContext context,
             IWatermarkService watermarkService,
             ICursorService cursorService,
+            IDeviseConversionService deviseConversionService,
             ILogger<SyncService> logger)
         {
             _context = context;
             _watermarkService = watermarkService;
             _cursorService = cursorService;
+            _deviseConversionService = deviseConversionService;
             _logger = logger;
         }
 
@@ -454,9 +459,12 @@ namespace Kenergie.Services
                         Commentaire = paymentRequest.Commentaire,
                         IdUtilisateur = userId,  // Correction critique : lier le paiement à l'utilisateur
                         Statut = "Validé",
-                        UpdatedAt = DateTime.UtcNow
+                        UpdatedAt = DateTime.UtcNow,
+                        CodeDevisePaiement = paymentRequest.CodeDevisePaiement,
+                        EstPaiementArriere = paymentRequest.IdClientFacture.HasValue
                     };
 
+                    await ApplySyncPaiementDeviseSnapshotAsync(societeId, paiement);
                     await _context.Paiements.AddAsync(paiement);
                     await _context.SaveChangesAsync();
                     if (paymentRequest.IdClientFacture.HasValue)
@@ -474,6 +482,18 @@ namespace Kenergie.Services
                         ErrorCode = null
                     });
                     created++;
+                }
+                catch (ArgumentException ex)
+                {
+                    results.Add(new PaymentResultDto
+                    {
+                        ClientRequestId = paymentRequest.ClientRequestId,
+                        Status = "rejected",
+                        IdPaiement = null,
+                        Message = ex.Message,
+                        ErrorCode = "CURRENCY_MISMATCH"
+                    });
+                    rejected++;
                 }
                 catch (Exception ex)
                 {
@@ -509,6 +529,9 @@ namespace Kenergie.Services
         /// </summary>
         private async Task<(bool IsValid, string Message, string? ErrorCode)> ValidatePaymentAsync(int societeId, PaymentRequestDto paymentRequest)
         {
+            if (MethodePaiementHelper.IsFlexPay(paymentRequest.MethodePaiement))
+                return (false, "Pour Mobile Money / Carte, utilisez POST /api/Paiement/electronique", "USE_ELECTRONIC_ENDPOINT");
+
             // Vérifier que le client appartient à la société (via relation indirecte)
             var client = await _context.Clients
                 .AsNoTracking()
@@ -543,9 +566,57 @@ namespace Kenergie.Services
 
                 if (paymentRequest.MontantPaye > (clientFacture.MontantDu ?? 0))
                     return (false, "Montant supérieur au montant dû", "AMOUNT_EXCEEDS_DUE");
+
+                var codeFacture = DeviseConversionService.NormalizeCode(
+                    !string.IsNullOrWhiteSpace(clientFacture.CodeDevisePrix) ? clientFacture.CodeDevisePrix! : "CDF");
+                var codePaiement = DeviseConversionService.NormalizeCode(
+                    !string.IsNullOrWhiteSpace(paymentRequest.CodeDevisePaiement)
+                        ? paymentRequest.CodeDevisePaiement!
+                        : codeFacture);
+                if (!string.Equals(codePaiement, codeFacture, StringComparison.OrdinalIgnoreCase))
+                    return (false, $"Le paiement doit être dans la devise de la facture ({codeFacture})", "CURRENCY_MISMATCH");
             }
 
             return (true, "Validation réussie", null);
+        }
+
+        private async Task ApplySyncPaiementDeviseSnapshotAsync(int societeId, Paiement paiement)
+        {
+            string? codeFacture = null;
+            if (paiement.IdClientFacture.HasValue)
+            {
+                codeFacture = await _context.ClientFactures
+                    .Where(cf => cf.IdClientFacture == paiement.IdClientFacture.Value)
+                    .Select(cf => cf.CodeDevisePrix)
+                    .FirstOrDefaultAsync();
+            }
+            else if (paiement.IdFacture.HasValue)
+            {
+                codeFacture = await _context.Factures
+                    .Where(f => f.IdFacture == paiement.IdFacture.Value)
+                    .Select(f => f.CodeDevisePrix)
+                    .FirstOrDefaultAsync();
+            }
+
+            var principale = await _deviseConversionService.GetCodeDevisePrincipaleAsync(societeId);
+            codeFacture = DeviseConversionService.NormalizeCode(
+                !string.IsNullOrWhiteSpace(codeFacture) ? codeFacture! : principale);
+            var codePaiement = DeviseConversionService.NormalizeCode(
+                !string.IsNullOrWhiteSpace(paiement.CodeDevisePaiement) ? paiement.CodeDevisePaiement! : codeFacture);
+
+            if (!string.Equals(codePaiement, codeFacture, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    $"Le paiement doit être dans la même devise que la facture ({codeFacture}).");
+            }
+
+            var conversion = await _deviseConversionService.ConvertirVersPrincipaleAsync(
+                societeId, codePaiement, paiement.MontantPaye, paiement.DatePaiement);
+
+            paiement.CodeDevisePaiement = codePaiement;
+            paiement.CodeDevisePrincipale = principale;
+            paiement.TauxVersDevisePrincipale = conversion.Taux;
+            paiement.MontantPayeDevisePrincipale = conversion.MontantConverti;
         }
 
         /// <summary>
@@ -560,6 +631,7 @@ namespace Kenergie.Services
             {
                 clientFacture.MontantPaye = (clientFacture.MontantPaye ?? 0) + montantPaye;
                 clientFacture.MontantDu = (clientFacture.Montant ?? 0) - clientFacture.MontantPaye;
+                PaiementClientFactureEnrichment.RecalculateDevisePrincipaleBalances(clientFacture);
                 clientFacture.DateModification = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
             }

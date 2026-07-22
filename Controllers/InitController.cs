@@ -210,6 +210,7 @@ namespace Kenergie.Controllers
             {
                 Nom = "Kenergie",
                 Devise = "Excellence et Innovation",
+                CodeDevisePrincipale = "CDF",
                 Type = "Privée",
                 Description = "Société d'excellence offrant des services de qualité énergétique",
                 Telephone = "+243999999999",

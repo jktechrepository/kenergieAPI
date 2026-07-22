@@ -42,16 +42,52 @@ namespace Kenergie.Models
         public decimal MontantPaye { get; set; }
 
         /// <summary>
+        /// Code devise du paiement (doit correspondre à la devise de la ClientFacture en phase 1).
+        /// </summary>
+        [MaxLength(3)]
+        public string? CodeDevisePaiement { get; set; }
+
+        /// <summary>
+        /// Snapshot de la devise principale société au moment du paiement.
+        /// </summary>
+        [MaxLength(3)]
+        public string? CodeDevisePrincipale { get; set; }
+
+        /// <summary>
+        /// Taux figé vers la devise principale.
+        /// </summary>
+        [Column(TypeName = "decimal(18,6)")]
+        public decimal? TauxVersDevisePrincipale { get; set; }
+
+        /// <summary>
+        /// Montant payé consolidé en devise principale.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? MontantPayeDevisePrincipale { get; set; }
+
+        /// <summary>
         /// Montant facturé sur la ligne ClientFacture (aligné sur ClientFacture.Montant).
         /// </summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal? MontantAPaye { get; set; }
 
         /// <summary>
+        /// Montant à payer consolidé en devise principale.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? MontantAPayeDevisePrincipale { get; set; }
+
+        /// <summary>
         /// Reste dû sur la ligne ClientFacture (aligné sur ClientFacture.MontantDu).
         /// </summary>
         [Column(TypeName = "decimal(18,2)")]
         public decimal? ResteAPaye { get; set; }
+
+        /// <summary>
+        /// Reste à payer consolidé en devise principale.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? ResteAPayeDevisePrincipale { get; set; }
 
         /// <summary>
         /// Date du paiement

@@ -41,7 +41,7 @@ namespace Kenergie.Services.Repositories
         Task<ClientFactureConsolideDto> GetBySocieteAnneeMoisWithStatsAsync(int idSociete, int annees, string mois);
 
         // Création d'arriéré pré-existant
-        Task<ClientFacture> CreatePreExistantAsync(int idClient, decimal montant, string mois, int annees, string? description = null, DateTime? dateEmission = null);
+        Task<ClientFacture> CreatePreExistantAsync(int idClient, decimal montant, string mois, int annees, string? description = null, DateTime? dateEmission = null, string? codeDevisePrix = null);
 
         // Mise à jour des montants
         Task<bool> UpdateMontantPayeAsync(int idClientFacture, decimal montantPaye);

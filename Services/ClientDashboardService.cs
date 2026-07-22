@@ -55,15 +55,15 @@ namespace Kenergie.Services
 
                 // 1. Montant total des factures
                 var montantTotalFactures = await _context.ClientFactures
-                    .SumAsync(cf => cf.Montant ?? 0);
+                    .SumAsync(cf => (cf.MontantDevisePrincipale ?? cf.Montant ?? 0));
 
                 // 2. Montant total payé
                 var montantTotalPaye = await _context.ClientFactures
-                    .SumAsync(cf => cf.MontantPaye ?? 0);
+                    .SumAsync(cf => (cf.MontantPayeDevisePrincipale ?? cf.MontantPaye ?? 0));
 
                 // 3. Montant total dû
                 var montantTotalDu = await _context.ClientFactures
-                    .SumAsync(cf => cf.MontantDu ?? 0);
+                    .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu ?? 0));
 
                 // 4. Nombre total de factures
                 var nombreFactures = await _context.ClientFactures
@@ -95,7 +95,7 @@ namespace Kenergie.Services
                 var consommationDerniers12Mois = await _context.ClientFactures
                     .Where(cf => cf.DateEmission.HasValue && 
                            cf.DateEmission.Value >= dateDebut)
-                    .SumAsync(cf => cf.Montant ?? 0);
+                    .SumAsync(cf => (cf.MontantDevisePrincipale ?? cf.Montant ?? 0));
 
                 var consommationMoyenneMensuelle = consommationDerniers12Mois / 12;
 

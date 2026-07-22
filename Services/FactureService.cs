@@ -13,12 +13,18 @@ namespace Kenergie.Services
     {
         private readonly KenergieDbContext _context;
         private readonly IClientFactureRepository _clientFactureRepository;
+        private readonly IDeviseConversionService _deviseConversionService;
         private readonly ILogger<FactureService> _logger;
 
-        public FactureService(KenergieDbContext context, IClientFactureRepository clientFactureRepository, ILogger<FactureService> logger)
+        public FactureService(
+            KenergieDbContext context,
+            IClientFactureRepository clientFactureRepository,
+            IDeviseConversionService deviseConversionService,
+            ILogger<FactureService> logger)
         {
             _context = context;
             _clientFactureRepository = clientFactureRepository;
+            _deviseConversionService = deviseConversionService;
             _logger = logger;
         }
 
@@ -340,6 +346,8 @@ namespace Kenergie.Services
             facture.EstDiffusee = false;
             facture.DateDiffusion = null;
 
+            await ApplyFactureDeviseSnapshotAsync(facture);
+
             _context.Factures.Add(facture);
             await _context.SaveChangesAsync();
 
@@ -350,6 +358,35 @@ namespace Kenergie.Services
             }
 
             return facture;
+        }
+
+        /// <summary>
+        /// Résout la société et applique le snapshot devise sur une facture.
+        /// </summary>
+        private async Task ApplyFactureDeviseSnapshotAsync(Facture facture, string? codeDevisePrixOverride = null)
+        {
+            var idSociete = await _context.Usages
+                .Where(u => u.IdUsage == facture.IdUsage)
+                .Select(u => (int?)u.CategorieClient!.IdSociete)
+                .FirstOrDefaultAsync();
+
+            if (!idSociete.HasValue)
+                throw new InvalidOperationException($"Impossible de résoudre la société pour l'usage {facture.IdUsage}.");
+
+            var principale = await _deviseConversionService.GetCodeDevisePrincipaleAsync(idSociete.Value);
+            var codePrix = DeviseConversionService.NormalizeCode(
+                !string.IsNullOrWhiteSpace(codeDevisePrixOverride)
+                    ? codeDevisePrixOverride!
+                    : (!string.IsNullOrWhiteSpace(facture.CodeDevisePrix) ? facture.CodeDevisePrix! : principale));
+
+            var dateRef = facture.DateEmission ?? DateTime.UtcNow;
+            var conversion = await _deviseConversionService.ConvertirVersPrincipaleAsync(
+                idSociete.Value, codePrix, facture.Montant ?? 0m, dateRef);
+
+            facture.CodeDevisePrix = codePrix;
+            facture.CodeDevisePrincipale = principale;
+            facture.TauxVersDevisePrincipale = conversion.Taux;
+            facture.MontantDevisePrincipale = conversion.MontantConverti;
         }
 
         /// <summary>
@@ -427,6 +464,14 @@ namespace Kenergie.Services
                         nombreBatiment = nombreBatiment, // Snapshot
                         MontantPaye = 0, // Aucun paiement initial
                         MontantDu = montantTotal, // Tout le montant est dû initialement
+                        CodeDevisePrix = facture.CodeDevisePrix,
+                        CodeDevisePrincipale = facture.CodeDevisePrincipale,
+                        TauxVersDevisePrincipale = facture.TauxVersDevisePrincipale,
+                        MontantDevisePrincipale = Math.Round(
+                            montantTotal * (facture.TauxVersDevisePrincipale ?? 1m), 2, MidpointRounding.AwayFromZero),
+                        MontantPayeDevisePrincipale = 0,
+                        MontantDuDevisePrincipale = Math.Round(
+                            montantTotal * (facture.TauxVersDevisePrincipale ?? 1m), 2, MidpointRounding.AwayFromZero),
                         Mois = mois,
                         Annees = facture.AnneesEmission,
                         DateEmission = facture.DateEmission ?? DateTime.Now,
@@ -703,11 +748,14 @@ namespace Kenergie.Services
                                 AnneesEmission = dto.AnneesEmission,
                                 IdUsage = dto.IdUsage,
                                 IdTypeDeCourant = dto.IdTypeDeCourant, // 🎯 NOUVEAU
+                                CodeDevisePrix = dto.CodeDevisePrix,
                                 Statut = dto.Statut ?? true,
                                 EstDiffusee = false, // ✨ Toujours false lors de la création
                                 DateDiffusion = null, // ✨ Toujours null lors de la création
                                 DateCreation = DateTime.Now
                             };
+
+                            await ApplyFactureDeviseSnapshotAsync(facture, dto.CodeDevisePrix);
 
                             facturesToCreate.Add(facture);
                         }

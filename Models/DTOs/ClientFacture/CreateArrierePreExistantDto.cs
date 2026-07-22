@@ -46,5 +46,12 @@ namespace Kenergie.Models.DTOs.ClientFacture
         /// </summary>
         [MaxLength(500, ErrorMessage = "La description ne peut pas dépasser 500 caractères")]
         public string? Description { get; set; }
+
+        /// <summary>
+        /// Code devise de l'arriéré (optionnel, défaut = devise principale société).
+        /// </summary>
+        [MaxLength(3)]
+        [MinLength(3)]
+        public string? CodeDevisePrix { get; set; }
     }
 }

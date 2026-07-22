@@ -15,11 +15,16 @@ namespace Kenergie.Services
     public class ClientFactureService : IClientFactureRepository
     {
         private readonly KenergieDbContext _context;
+        private readonly IDeviseConversionService _deviseConversionService;
         private readonly ILogger<ClientFactureService> _logger;
 
-        public ClientFactureService(KenergieDbContext context, ILogger<ClientFactureService> logger)
+        public ClientFactureService(
+            KenergieDbContext context,
+            IDeviseConversionService deviseConversionService,
+            ILogger<ClientFactureService> logger)
         {
             _context = context;
+            _deviseConversionService = deviseConversionService;
             _logger = logger;
         }
 
@@ -48,9 +53,65 @@ namespace Kenergie.Services
                 clientFacture.MontantDu = clientFacture.Montant.Value;
             }
 
+            await ApplyClientFactureDeviseSnapshotAsync(clientFacture);
+
             _context.ClientFactures.Add(clientFacture);
             await _context.SaveChangesAsync();
             return clientFacture;
+        }
+
+        private async Task ApplyClientFactureDeviseSnapshotAsync(ClientFacture clientFacture)
+        {
+            // Si déjà snapshoté (héritage facture), ne pas recalculer sauf montants principale manquants
+            if (!string.IsNullOrWhiteSpace(clientFacture.CodeDevisePrix)
+                && !string.IsNullOrWhiteSpace(clientFacture.CodeDevisePrincipale)
+                && clientFacture.TauxVersDevisePrincipale.HasValue
+                && clientFacture.MontantDevisePrincipale.HasValue)
+            {
+                clientFacture.MontantPayeDevisePrincipale ??= Math.Round(
+                    (clientFacture.MontantPaye ?? 0) * clientFacture.TauxVersDevisePrincipale.Value, 2, MidpointRounding.AwayFromZero);
+                clientFacture.MontantDuDevisePrincipale ??= Math.Round(
+                    (clientFacture.MontantDu ?? 0) * clientFacture.TauxVersDevisePrincipale.Value, 2, MidpointRounding.AwayFromZero);
+                return;
+            }
+
+            var idSociete = await ResolveIdSocieteForClientAsync(clientFacture.IdClient, clientFacture.IdFacture);
+            if (!idSociete.HasValue)
+                throw new InvalidOperationException($"Impossible de résoudre la société pour le client {clientFacture.IdClient}.");
+
+            var principale = await _deviseConversionService.GetCodeDevisePrincipaleAsync(idSociete.Value);
+            var codePrix = DeviseConversionService.NormalizeCode(
+                !string.IsNullOrWhiteSpace(clientFacture.CodeDevisePrix) ? clientFacture.CodeDevisePrix! : principale);
+
+            var dateRef = clientFacture.DateEmission ?? DateTime.UtcNow;
+            var conversion = await _deviseConversionService.ConvertirVersPrincipaleAsync(
+                idSociete.Value, codePrix, clientFacture.Montant ?? 0m, dateRef);
+
+            clientFacture.CodeDevisePrix = codePrix;
+            clientFacture.CodeDevisePrincipale = principale;
+            clientFacture.TauxVersDevisePrincipale = conversion.Taux;
+            clientFacture.MontantDevisePrincipale = conversion.MontantConverti;
+            clientFacture.MontantPayeDevisePrincipale = Math.Round(
+                (clientFacture.MontantPaye ?? 0) * conversion.Taux, 2, MidpointRounding.AwayFromZero);
+            clientFacture.MontantDuDevisePrincipale = Math.Round(
+                (clientFacture.MontantDu ?? 0) * conversion.Taux, 2, MidpointRounding.AwayFromZero);
+        }
+
+        private async Task<int?> ResolveIdSocieteForClientAsync(int idClient, int? idFacture)
+        {
+            if (idFacture.HasValue)
+            {
+                var fromFacture = await _context.Factures
+                    .Where(f => f.IdFacture == idFacture.Value)
+                    .Select(f => (int?)f.Usage!.CategorieClient!.IdSociete)
+                    .FirstOrDefaultAsync();
+                if (fromFacture.HasValue) return fromFacture;
+            }
+
+            return await _context.ClientUsages
+                .Where(cu => cu.IdClient == idClient && cu.Statut == true)
+                .Select(cu => (int?)cu.Usage!.CategorieClient!.IdSociete)
+                .FirstOrDefaultAsync();
         }
 
         public async Task<ClientFacture?> UpdateAsync(ClientFacture clientFacture)
@@ -403,7 +464,7 @@ namespace Kenergie.Services
                 .Sum(p => p.MontantDuTotal);
         }
 
-        public async Task<ClientFacture> CreatePreExistantAsync(int idClient, decimal montant, string mois, int annees, string? description = null, DateTime? dateEmission = null)
+        public async Task<ClientFacture> CreatePreExistantAsync(int idClient, decimal montant, string mois, int annees, string? description = null, DateTime? dateEmission = null, string? codeDevisePrix = null)
         {
             var clientFacture = new ClientFacture
             {
@@ -412,6 +473,7 @@ namespace Kenergie.Services
                 Montant = montant,
                 MontantPaye = 0,
                 MontantDu = montant, // Tout le montant est dû
+                CodeDevisePrix = codeDevisePrix,
                 Mois = mois,
                 Annees = annees,
                 DateEmission = dateEmission ?? DateTime.Now,
@@ -438,6 +500,7 @@ namespace Kenergie.Services
             {
                 clientFacture.MontantDu = clientFacture.Montant.Value - montantPaye;
             }
+            PaiementClientFactureEnrichment.RecalculateDevisePrincipaleBalances(clientFacture);
 
             await _context.SaveChangesAsync();
             return true;
@@ -452,6 +515,7 @@ namespace Kenergie.Services
             if (clientFacture.Montant.HasValue && clientFacture.MontantPaye.HasValue)
             {
                 clientFacture.MontantDu = clientFacture.Montant.Value - clientFacture.MontantPaye.Value;
+                PaiementClientFactureEnrichment.RecalculateDevisePrincipaleBalances(clientFacture);
                 clientFacture.DateModification = DateTime.Now;
                 await _context.SaveChangesAsync();
                 return true;

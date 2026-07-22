@@ -95,7 +95,7 @@ namespace Kenergie.Services
                            clientIds.Contains(p.IdClient.Value))
                     .ToListAsync();
 
-                var montantMois = paiementsMois.Sum(p => p.MontantPaye);
+                var montantMois = paiementsMois.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
                 var nombrePaiements = paiementsMois.Count;
                 var ticketMoyen = nombrePaiements > 0 ? montantMois / nombrePaiements : 0;
 
@@ -106,7 +106,7 @@ namespace Kenergie.Services
                            p.DatePaiement <= finMoisPrecedent &&
                            p.IdClient.HasValue && 
                            clientIds.Contains(p.IdClient.Value))
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 var nombrePaiementsPrecedent = await _context.Paiements
                     .Where(p => !p.IsDeleted && 
@@ -167,7 +167,7 @@ namespace Kenergie.Services
                                f.Annees == DateTime.Now.Year)
                     .ToListAsync();
 
-                var montantTotalFactures = facturesMois.Sum(f => f.Montant ?? 0);
+                var montantTotalFactures = facturesMois.Sum(f => (f.MontantDevisePrincipale ?? f.Montant ?? 0));
                 var nombreFactures = facturesMois.Count;
                 var factureMoyenne = nombreFactures > 0 ? montantTotalFactures / nombreFactures : 0;
 
@@ -181,7 +181,7 @@ namespace Kenergie.Services
                                f.Annees == debutMoisPrecedent.Year)
                     .ToListAsync();
 
-                var montantMoisPrecedent = facturesMoisPrecedent.Sum(f => f.Montant ?? 0);
+                var montantMoisPrecedent = facturesMoisPrecedent.Sum(f => (f.MontantDevisePrincipale ?? f.Montant ?? 0));
                 var nombreFacturesMoisPrecedent = facturesMoisPrecedent.Count;
                 var factureMoyenneMoisPrecedent = nombreFacturesMoisPrecedent > 0 
                     ? montantMoisPrecedent / nombreFacturesMoisPrecedent 
@@ -205,7 +205,7 @@ namespace Kenergie.Services
                            p.DatePaiement <= finMois &&
                            p.IdClient.HasValue && 
                            clientIds.Contains(p.IdClient.Value))
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 var tauxRecouvrementEstime = montantMoisPrecedent > 0
                     ? Math.Round((paiementsDuMois / montantMoisPrecedent) * 100, 2)
@@ -305,13 +305,13 @@ namespace Kenergie.Services
 
                 var montantTotalFactures = await _context.ClientFactures
                     .Where(f => f.Statut == true && clientIds.Contains(f.IdClient))
-                    .SumAsync(f => f.Montant ?? 0);
+                    .SumAsync(f => (f.MontantDevisePrincipale ?? f.Montant ?? 0));
 
                 var montantTotalPaiements = await _context.Paiements
                     .Where(p => !p.IsDeleted
                         && p.IdClient.HasValue
                         && clientIds.Contains(p.IdClient.Value))
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 return montantTotalFactures - montantTotalPaiements;
             }
@@ -347,6 +347,7 @@ namespace Kenergie.Services
                     {
                         p.IdPaiement,
                         p.MontantPaye,
+                        p.MontantPayeDevisePrincipale,
                         p.IdUtilisateur,
                         DatePaiement = p.DatePaiement
                     })
@@ -388,7 +389,7 @@ namespace Kenergie.Services
                         IdAgent = g.Key.IdAgent,
                         Matricule = g.Key.Matricule,
                         NomComplet = g.Key.NomComplet,
-                        MontantCollecte = g.Sum(x => x.Paiement.MontantPaye),
+                        MontantCollecte = g.Sum(x => (x.Paiement.MontantPayeDevisePrincipale ?? x.Paiement.MontantPaye)),
                         NombrePaiements = g.Count()
                     })
                     .OrderByDescending(dto => dto.MontantCollecte)

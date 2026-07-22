@@ -68,6 +68,13 @@ namespace Kenergie.Models.DTOs.Facture
         public int? IdTypeDeCourant { get; set; }
 
         /// <summary>
+        /// Code devise du prix (optionnel, défaut = devise principale société).
+        /// </summary>
+        [MaxLength(3)]
+        [MinLength(3)]
+        public string? CodeDevisePrix { get; set; }
+
+        /// <summary>
         /// Statut de la facture (optionnel, par défaut true)
         /// </summary>
         public bool? Statut { get; set; }

@@ -1,8 +1,10 @@
 using Kenergie.Models;
 using Kenergie.Models.DTOs;
+using Kenergie.Models.DTOs.FlexPay;
 using Kenergie.Models.DTOs.Pagination;
 using Kenergie.Models.DTOs.Paiement;
 using Kenergie.Services;
+using Kenergie.Services.FlexPay;
 using Kenergie.Services.Repositories;
 using Kenergie.Attributes;
 using Kenergie.Helpers;
@@ -29,6 +31,7 @@ namespace Kenergie.Controllers
         private readonly KenergieDbContext _context;
         private readonly ISignalRNotificationService _signalRNotificationService;
         private readonly ISignalRStatistiquesService _signalRStatistiquesService;
+        private readonly IPaiementElectroniqueService _paiementElectroniqueService;
         private readonly ILogger<PaiementController> _logger;
 
         public PaiementController(
@@ -41,6 +44,7 @@ namespace Kenergie.Controllers
             KenergieDbContext context,
             ISignalRNotificationService signalRNotificationService,
             ISignalRStatistiquesService signalRStatistiquesService,
+            IPaiementElectroniqueService paiementElectroniqueService,
             ILogger<PaiementController> logger)
         {
             _paiementRepository = paiementRepository;
@@ -52,6 +56,7 @@ namespace Kenergie.Controllers
             _context = context;
             _signalRNotificationService = signalRNotificationService;
             _signalRStatistiquesService = signalRStatistiquesService;
+            _paiementElectroniqueService = paiementElectroniqueService;
             _logger = logger;
         }
 
@@ -71,8 +76,49 @@ namespace Kenergie.Controllers
             return Ok(result);
         }
 
+        /// <summary>Initier un paiement électronique FlexPay (MM / carte).</summary>
+        [HttpPost("electronique")]
+        [Authorize(Roles = "Super-Admin,Admin,Caissier,Financier,Responsable Commercial,Agent Direction Commercial")]
+        public async Task<ActionResult<PaiementElectroniquePendingDto>> InitierElectronique([FromBody] InitierPaiementElectroniqueDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var idSociete = await ResolveSocieteElectroniqueAsync(dto);
+                if (idSociete <= 0)
+                    return BadRequest(new { message = "Impossible de déterminer la société. Fournissez idSociete." });
+
+                if (!_currentUserService.IsSuperAdmin && idSociete != _currentUserService.SocieteId)
+                    return Forbid();
+
+                var result = await _paiementElectroniqueService.InitierAsync(
+                    dto,
+                    idSociete,
+                    _currentUserService.UserId > 0 ? _currentUserService.UserId : null);
+                return Ok(result);
+            }
+            catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+            catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        /// <summary>Statut d'un paiement électronique en attente.</summary>
+        [HttpGet("electronique/{idPending:int}")]
+        [Authorize(Roles = "Super-Admin,Admin,Gerant,Financier,Caissier,Responsable Commercial,Agent Direction Commercial")]
+        public async Task<ActionResult<PaiementElectroniquePendingDto>> GetPendingElectronique(int idPending)
+        {
+            int? filter = _currentUserService.IsSuperAdmin ? null : _currentUserService.SocieteId;
+            var pending = await _paiementElectroniqueService.GetPendingAsync(idPending, filter);
+            if (pending == null)
+                return NotFound(new { message = "Paiement électronique introuvable." });
+            return Ok(pending);
+        }
+
         // GET: api/Paiement/5
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         public async Task<ActionResult<Paiement>> GetPaiement(int id)
         {
             var paiement = await _paiementRepository.GetByIdAsync(id);
@@ -170,6 +216,14 @@ namespace Kenergie.Controllers
                 return BadRequest(ModelState);
             }
 
+            if (Kenergie.Helpers.MethodePaiementHelper.IsFlexPay(dto.MethodePaiement))
+            {
+                return BadRequest(new
+                {
+                    message = "Pour Mobile Money / Carte, utilisez POST /api/Paiement/electronique."
+                });
+            }
+
             // Vérifier que IdFacture ou IdClientFacture est fourni
             if (!dto.IdFacture.HasValue && !dto.IdClientFacture.HasValue)
             {
@@ -249,7 +303,8 @@ namespace Kenergie.Controllers
                     Commentaire = dto.Commentaire,
                     Statut = statutNormalise,
                     IdUtilisateur = idUtilisateur,
-                    EstPaiementArriere = estPaiementArriere
+                    EstPaiementArriere = estPaiementArriere,
+                    CodeDevisePaiement = dto.CodeDevisePaiement
                 };
 
                 // Enregistrer le paiement et mettre à jour la facture
@@ -382,6 +437,14 @@ namespace Kenergie.Controllers
                 };
 
                 return CreatedAtAction(nameof(GetPaiement), new { id = paiementCree.IdPaiement }, response);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -740,6 +803,43 @@ namespace Kenergie.Controllers
                 montantDuConsolide = montantDuConsolide,
                 nombreClients = clientFactures.Count
             });
+        }
+
+        private async Task<int> ResolveSocieteElectroniqueAsync(InitierPaiementElectroniqueDto dto)
+        {
+            if (dto.IdSociete.HasValue && dto.IdSociete.Value > 0)
+                return dto.IdSociete.Value;
+
+            if (!_currentUserService.IsSuperAdmin && _currentUserService.SocieteId > 0)
+                return _currentUserService.SocieteId;
+
+            if (dto.IdClientFacture.HasValue)
+            {
+                var fromCf = await _context.ClientFactures
+                    .Where(cf => cf.IdClientFacture == dto.IdClientFacture.Value)
+                    .Select(cf => (int?)cf.Facture!.Usage!.CategorieClient!.IdSociete)
+                    .FirstOrDefaultAsync();
+                if (fromCf.HasValue) return fromCf.Value;
+
+                fromCf = await _context.ClientFactures
+                    .Where(cf => cf.IdClientFacture == dto.IdClientFacture.Value)
+                    .SelectMany(cf => cf.Client!.ClientsUsages!)
+                    .Where(cu => cu.Statut)
+                    .Select(cu => (int?)cu.Usage!.CategorieClient!.IdSociete)
+                    .FirstOrDefaultAsync();
+                if (fromCf.HasValue) return fromCf.Value;
+            }
+
+            if (dto.IdFacture.HasValue)
+            {
+                var fromF = await _context.Factures
+                    .Where(f => f.IdFacture == dto.IdFacture.Value)
+                    .Select(f => (int?)f.Usage!.CategorieClient!.IdSociete)
+                    .FirstOrDefaultAsync();
+                if (fromF.HasValue) return fromF.Value;
+            }
+
+            return _currentUserService.SocieteId;
         }
     }
 }

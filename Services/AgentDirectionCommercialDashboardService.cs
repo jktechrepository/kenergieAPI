@@ -103,7 +103,7 @@ namespace Kenergie.Services
                     .Where(p => p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                                p.DatePaiement >= debutMois && 
                                p.DatePaiement <= finMois)
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 // Taux de conversion personnel
                 var tauxConversionPersonnel = totalClientsGeres > 0 ? 
@@ -174,7 +174,7 @@ namespace Kenergie.Services
                     .Where(p => p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                                p.DatePaiement >= debutMois && 
                                p.DatePaiement <= finMois)
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 // Recouvrement mois précédent
                 var recouvrementMoisPrecedent = await _context.Paiements
@@ -182,7 +182,7 @@ namespace Kenergie.Services
                     .Where(p => p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                                p.DatePaiement >= debutMoisPrecedent && 
                                p.DatePaiement <= finMoisPrecedent)
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 // Nouveaux clients obtenus
                 var nouveauxClientsObtenus = clients.Count(c => c.DateCreation >= debutMois && c.DateCreation <= finMois);
@@ -250,9 +250,9 @@ namespace Kenergie.Services
                         .Where(cf => cf.IdClient == client.IdClient)
                         .ToListAsync();
 
-                    var montantTotalFactures = factures.Where(cf => cf.Montant.HasValue).Sum(cf => cf.Montant.Value);
-                    var montantPaye = factures.Where(cf => cf.MontantPaye.HasValue).Sum(cf => cf.MontantPaye.Value);
-                    var montantDu = factures.Where(cf => cf.MontantDu.HasValue).Sum(cf => cf.MontantDu.Value);
+                    var montantTotalFactures = factures.Where(cf => cf.Montant.HasValue).Sum(cf => (cf.MontantDevisePrincipale ?? cf.Montant.Value));
+                    var montantPaye = factures.Where(cf => cf.MontantPaye.HasValue).Sum(cf => (cf.MontantPayeDevisePrincipale ?? cf.MontantPaye.Value));
+                    var montantDu = factures.Where(cf => cf.MontantDu.HasValue).Sum(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
                     // Dernier paiement
                     var dernierPaiement = await _context.Paiements
@@ -435,7 +435,7 @@ namespace Kenergie.Services
                     .Where(p => p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                                p.DatePaiement >= debutMois && 
                                p.DatePaiement <= DateTime.Now)
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 var nouveauxClientsActuels = clients.Count(c => c.DateCreation >= debutMois && c.DateCreation <= DateTime.Now);
                 var visitesRealisees = 15; // Simulation

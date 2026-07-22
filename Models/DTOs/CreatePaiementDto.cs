@@ -60,6 +60,13 @@ namespace Kenergie.Models.DTOs
         /// </summary>
         [Range(1, int.MaxValue, ErrorMessage = "L'ID de la ClientFacture doit être valide")]
         public int? IdClientFacture { get; set; }
+
+        /// <summary>
+        /// Code devise du paiement (doit correspondre à la devise de la facture / ClientFacture).
+        /// </summary>
+        [MaxLength(3)]
+        [MinLength(3)]
+        public string? CodeDevisePaiement { get; set; }
     }
 }
 

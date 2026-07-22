@@ -72,6 +72,84 @@ Ce document répertorie toutes les documentations API disponibles pour les équi
 
 ---
 
+### 4. 📊 Module Statistiques
+**Fichier :** [`API_DOCUMENTATION_STATISTIQUES.md`](./API_DOCUMENTATION_STATISTIQUES.md)
+
+**Description :** Module de KPI et tableaux de bord pour la societe, avec vues generales, financieres, operationnelles, performance et consolidees.
+
+**Fonctionnalités principales :**
+- Vue globale des indicateurs de recouvrement
+- Analyse financiere avec fenetre de periode
+- Repartition operationnelle des clients
+- Classement des agents caissiers (Top agents)
+- Endpoint consolide pour alimenter un dashboard unique
+
+**Endpoints principaux :**
+- `GET /api/Statistiques/generales/{idSociete}` - KPI generaux
+- `GET /api/Statistiques/financieres/{idSociete}` - KPI financiers
+- `GET /api/Statistiques/operationnelles/{idSociete}` - KPI operationnels
+- `GET /api/Statistiques/performance/{idSociete}` - KPI performance
+- `GET /api/Statistiques/consolidees/{idSociete}` - KPI consolides
+
+**Note multi-devises :** les montants sont consolidés en `codeDevisePrincipale` (défaut CDF).
+
+---
+
+### 5. Module Multi-devises
+**Fichier :** [`API_DOCUMENTATION_MULTIDEVISE.md`](./API_DOCUMENTATION_MULTIDEVISE.md)
+
+**Description :** Gestion des devises et taux de change par société, snapshots monétaires sur facturation/paiements, agrégats consolidés.
+
+**Fonctionnalités principales :**
+- CRUD devises par société + devise principale
+- Taux de change datés + preview de conversion
+- Snapshots devise sur Facture / ClientFacture / Paiement
+- Contrainte phase 1 : paiement dans la même devise que la facture
+
+**Endpoints principaux :**
+- `GET /api/Devise/devises` - Lister les devises actives (lecture : Caissier, Financier, Admin…)
+- `GET /api/Devise/preview-conversion` - Estimation de conversion (idem lecture)
+- `POST /api/Devise/devises` - Créer une devise (Admin / Gérant / Super-Admin)
+- `PUT /api/Devise/devises/{id}` - Modifier une devise (Admin / Gérant / Super-Admin)
+- `PUT /api/Devise/societe/{idSociete}/devise-principale/{codeDevise}` - Bascule principale
+- `POST /api/Devise/taux-change` - Créer un taux
+
+---
+
+### 6. Module FlexPay (paiement électronique)
+**Fichier :** [`API_DOCUMENTATION_FLEXPAY.md`](./API_DOCUMENTATION_FLEXPAY.md)
+
+**Description :** Paiement Mobile Money / carte via FlexPay (initiation async + callback + finalisation Paiement).
+
+**Fonctionnalités principales :**
+- Config marchand par société
+- Initiation MM / carte séparée du CASH
+- Callback public idempotent
+- Vérification secours par orderNumber
+
+**Endpoints principaux :**
+- `POST /api/Paiement/electronique` - Initier
+- `GET /api/Paiement/electronique/{id}` - Statut pending
+- `POST /api/FlexPay/callback` - Webhook public
+- `GET /api/FlexPay/verifier/{orderNumber}` - Secours
+- `CRUD /api/InfoPaiementSociete` - Config marchand
+
+---
+
+### 7. Guide d'intégration Frontend (Vue.js + Flutter)
+**Fichier :** [`FRONTEND_INTEGRATION_MULTIDEVISE_FLEXPAY.md`](./FRONTEND_INTEGRATION_MULTIDEVISE_FLEXPAY.md)
+
+**Description :** Guide pratique pour brancher Multi-devises et FlexPay côté web (Vue.js) et mobile (Flutter) : endpoints, modèles, UX, polling, erreurs, checklist QA.
+
+**Contenu principal :**
+- Règles métier communes Web/Mobile
+- Services / stores Vue (Pinia) + composable polling
+- Services Dio Flutter + Timer polling + url_launcher
+- Parcours CASH vs électronique
+- Checklist QA
+
+---
+
 ## 🔐 Authentification commune
 
 **Tous les endpoints nécessitent une authentification JWT.**
@@ -257,6 +335,7 @@ Pour toute question ou problème :
 | Communication | 2.0 | 14 décembre 2025 |
 | Plainte Client | 2.0 | 14 décembre 2025 |
 | Panne Signalement | 2.0 | 14 décembre 2025 |
+| Statistiques | 2.0 | 10 juillet 2026 |
 
 ---
 

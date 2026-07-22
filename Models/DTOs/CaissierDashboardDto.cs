@@ -11,6 +11,7 @@ namespace Kenergie.Models.DTOs
         public List<AlerteCaissierDto> AlertesCaissier { get; set; } = new();
         public ResumeCaisseDto ResumeCaisse { get; set; } = new();
         public DateTime DateGeneration { get; set; } = DateTime.UtcNow;
+        public string? CodeDevisePrincipale { get; set; }
     }
 
     public class CaissierStatistiquesDto

@@ -61,7 +61,7 @@ namespace Kenergie.Services
                                p.IdClient.HasValue &&
                                financialClientIds.Contains(p.IdClient.Value));
 
-                var totalPaiements = await paiementsMoisCourantQuery.SumAsync(p => p.MontantPaye);
+                var totalPaiements = await paiementsMoisCourantQuery.SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
                 var totalPaiementsCount = await paiementsMoisCourantQuery.CountAsync();
                 var collecteMois = totalPaiements;
 
@@ -70,7 +70,7 @@ namespace Kenergie.Services
                                cf.MontantDu.HasValue &&
                                cf.MontantDu.Value > 0 &&
                                financialClientIds.Contains(cf.IdClient))
-                    .SumAsync(cf => cf.MontantDu.Value);
+                    .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
                 // Factures du mois précédent
                 var facturesMoisPrecedent = await _context.ClientFactures
@@ -80,7 +80,7 @@ namespace Kenergie.Services
                                cf.Mois == moisPrecedentNormalise &&
                                cf.Annees == debutMoisPrecedent.Year &&
                                financialClientIds.Contains(cf.IdClient))
-                    .SumAsync(cf => cf.Montant.Value);
+                    .SumAsync(cf => (cf.MontantDevisePrincipale ?? cf.Montant.Value));
 
                 // Calcul du totalFactures (nombre de factures du mois précédent)
                 var totalFactures = await _context.ClientFactures
@@ -95,6 +95,11 @@ namespace Kenergie.Services
                     ? Math.Round((collecteMois / facturesMoisPrecedent) * 100, 2)
                     : (collecteMois > 0 ? 100 : 0);
 
+                var codeDevisePrincipale = await _context.Societes
+                    .Where(s => s.IdSociete == idSociete)
+                    .Select(s => s.CodeDevisePrincipale)
+                    .FirstOrDefaultAsync() ?? "CDF";
+
                 var statistiques = new StatistiquesGeneralesDto
                 {
                     TotalClients = totalClients,
@@ -103,7 +108,8 @@ namespace Kenergie.Services
                     TotalPaiements = totalPaiements,
                     TauxRecouvrement = tauxRecouvrement,
                     TotalPaiementsCount = totalPaiementsCount,
-                    DateGeneration = DateTime.Now
+                    DateGeneration = DateTime.Now,
+                    CodeDevisePrincipale = codeDevisePrincipale
                 };
 
                 _logger.LogInformation("✅ Statistiques générales calculées avec succès pour la société {SocieteId}: {Clients} clients, {Factures} factures, {Arrieres:C} arriérés, {Paiements:C} payés", 
@@ -155,7 +161,7 @@ namespace Kenergie.Services
                                cf.MontantDu.HasValue &&
                                cf.MontantDu.Value > 0 &&
                                financialClientIds.Contains(cf.IdClient))
-                    .SumAsync(cf => cf.MontantDu.Value);
+                    .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
                 var montantPaye = debut.HasValue || fin.HasValue
                     ? await SumPaiementsValidesAsync(financialClientIds, periodePaiementsDebut, periodePaiementsFin)
@@ -166,12 +172,17 @@ namespace Kenergie.Services
                                cf.MontantDu.HasValue &&
                                cf.MontantDu.Value > 0 &&
                                financialClientIds.Contains(cf.IdClient))
-                    .SumAsync(cf => cf.MontantDu.Value);
+                    .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
                 var evolutionMensuelle = await GetEvolutionMensuelleAsync(idSociete, categoriesIds, financialClientIds, dateDebut, dateFin);
 
                 var repartitionPaiements = await GetRepartitionPaiementsAsync(
                     idSociete, financialClientIds, periodePaiementsDebut, periodePaiementsFin);
+
+                var codeDevisePrincipale = await _context.Societes
+                    .Where(s => s.IdSociete == idSociete)
+                    .Select(s => s.CodeDevisePrincipale)
+                    .FirstOrDefaultAsync() ?? "CDF";
 
                 var statistiques = new StatistiquesFinancieresDto
                 {
@@ -181,7 +192,8 @@ namespace Kenergie.Services
                     MontantDu = montantDu,
                     EvolutionMensuelle = evolutionMensuelle,
                     RepartitionPaiements = repartitionPaiements,
-                    DateGeneration = DateTime.Now
+                    DateGeneration = DateTime.Now,
+                    CodeDevisePrincipale = codeDevisePrincipale
                 };
 
                 _logger.LogInformation("✅ Statistiques financières calculées avec succès pour la société {SocieteId}: CA={CA:C}, Arriérés={Arriérés:C}, Payé={Payé:C}", 
@@ -444,7 +456,7 @@ namespace Kenergie.Services
                                cf.Mois == moisPrecedentNormalise &&
                                cf.Annees == debutMoisPrecedent.Year &&
                                clientsIds.Contains(cf.IdClient))
-                    .SumAsync(cf => cf.Montant.Value);
+                    .SumAsync(cf => (cf.MontantDevisePrincipale ?? cf.Montant.Value));
 
                 // Calculer le montant total payé ce mois-ci
                 var montantPaye = await _context.Paiements
@@ -454,7 +466,7 @@ namespace Kenergie.Services
                                p.DatePaiement <= finMois &&
                                p.IdClient.HasValue &&
                                clientsIds.Contains(p.IdClient.Value))
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 // Calculer le taux de recouvrement (paiements du mois M / factures du mois M-1)
                 var tauxRecouvrement = montantFacturesMoisPrecedent > 0
@@ -518,7 +530,7 @@ namespace Kenergie.Services
                                    cf.Mois == moisPrecedentNormalise &&
                                    cf.Annees == debutMoisPrecedent.Year &&
                                    clientsCategorieIds.Contains(cf.IdClient))
-                        .SumAsync(cf => cf.Montant.Value);
+                        .SumAsync(cf => (cf.MontantDevisePrincipale ?? cf.Montant.Value));
 
                     // Calculer le montant payé ce mois-ci pour cette catégorie
                     var montantPayeCategorie = await _context.Paiements
@@ -528,7 +540,7 @@ namespace Kenergie.Services
                                    p.DatePaiement <= finMois &&
                                    p.IdClient.HasValue &&
                                    clientsCategorieIds.Contains(p.IdClient.Value))
-                        .SumAsync(p => p.MontantPaye);
+                        .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                     // Calculer le taux de recouvrement pour cette catégorie (paiements du mois M / factures du mois M-1)
                     var tauxRecouvrementCategorie = montantFacturesCategorie > 0
@@ -630,7 +642,7 @@ namespace Kenergie.Services
                         agent.IdAgent, agent.NomComplet, utilisateurAgent.IdUtilisateur, paiementsAgent.Count);
 
                     // 4. Calculer le montant collecté par cet agent via l'utilisateur
-                    var montantCollecte = paiementsAgent.Sum(p => p.MontantPaye);
+                    var montantCollecte = paiementsAgent.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                     // 5. Calculer le nombre de paiements pour cet agent
                     var nombrePaiements = paiementsAgent.Count;
@@ -691,7 +703,7 @@ namespace Kenergie.Services
                                    clientsIds.Contains(cf.IdClient) &&
                                    cf.DateCreation >= debutMois &&
                                    cf.DateCreation <= finMois)
-                        .SumAsync(cf => cf.MontantDu.Value);
+                        .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
                     var montantCollecteMois = await _context.Paiements
                         .Where(p => !p.IsDeleted &&
@@ -700,7 +712,7 @@ namespace Kenergie.Services
                                    p.DatePaiement <= finMois &&
                                    p.IdClient.HasValue &&
                                    clientsIds.Contains(p.IdClient.Value))
-                        .SumAsync(p => p.MontantPaye);
+                        .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                     var nombrePaiementsMois = await _context.Paiements
                         .Where(p => !p.IsDeleted &&
@@ -772,7 +784,7 @@ namespace Kenergie.Services
                         NombreClients = g.Select(cu => cu.IdClient).Distinct().Count(),
                         MontantTotal = g.Sum(cu => cu.Client != null ? 
                             _context.ClientFactures.Where(cf => cf.IdClient == cu.Client.IdClient && cf.Montant.HasValue)
-                                .Sum(cf => cf.Montant.Value) : 0)
+                                .Sum(cf => (cf.MontantDevisePrincipale ?? cf.Montant.Value)) : 0)
                     })
                     .ToListAsync();
 
@@ -881,7 +893,7 @@ namespace Kenergie.Services
                                    cf.DateCreation <= finMois)
                         .ToListAsync();
 
-                    var montantTotal = facturesMois.Where(cf => cf.Montant.HasValue).Sum(cf => cf.Montant.Value);
+                    var montantTotal = facturesMois.Where(cf => cf.Montant.HasValue).Sum(cf => (cf.MontantDevisePrincipale ?? cf.Montant.Value));
                     var nombreFactures = facturesMois.Count;
                     var montantMoyen = nombreFactures > 0 ? Math.Round(montantTotal / nombreFactures, 2) : 0;
 
@@ -971,7 +983,7 @@ namespace Kenergie.Services
                                    clientsIds.Contains(cf.IdClient) &&
                                    cf.DateCreation >= debutMois &&
                                    cf.DateCreation <= finMois)
-                        .SumAsync(cf => cf.MontantDu.Value);
+                        .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
                     var montantPaiements = await _context.Paiements
                         .Where(p => !p.IsDeleted &&
@@ -980,7 +992,7 @@ namespace Kenergie.Services
                                    p.DatePaiement <= finMois &&
                                    p.IdClient.HasValue &&
                                    clientsIds.Contains(p.IdClient.Value))
-                        .SumAsync(p => p.MontantPaye);
+                        .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                     var montantArrieres = await _context.ClientFactures
                         .Where(cf => cf.Statut == true &&
@@ -988,7 +1000,7 @@ namespace Kenergie.Services
                                    cf.MontantDu.Value > 0 &&
                                    clientsIds.Contains(cf.IdClient) &&
                                    cf.DateCreation <= finMois)
-                        .SumAsync(cf => cf.MontantDu.Value);
+                        .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
                     var nombreFactures = await _context.ClientFactures
                         .Where(cf => cf.Statut == true &&
@@ -1040,7 +1052,7 @@ namespace Kenergie.Services
                            p.DatePaiement <= dateFin &&
                            p.IdClient.HasValue &&
                            financialClientIds.Contains(p.IdClient.Value))
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
         }
 
         /// <summary>
@@ -1066,7 +1078,7 @@ namespace Kenergie.Services
                     .Select(g => new
                     {
                         MethodePaiement = g.Key,
-                        MontantTotal = g.Sum(p => p.MontantPaye),
+                        MontantTotal = g.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye)),
                         NombrePaiements = g.Count()
                     })
                     .ToListAsync();

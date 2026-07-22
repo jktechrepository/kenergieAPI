@@ -508,7 +508,8 @@ namespace Kenergie.Controllers
                 dto.Mois,
                 dto.Annees,
                 dto.Description,
-                dto.DateEmission
+                dto.DateEmission,
+                dto.CodeDevisePrix
             );
 
             // Audit

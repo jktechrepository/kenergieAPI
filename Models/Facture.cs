@@ -28,6 +28,30 @@ namespace Kenergie.Models
         public decimal? Montant { get; set; }
 
         /// <summary>
+        /// Code devise du prix saisi (devise d'origine).
+        /// </summary>
+        [MaxLength(3)]
+        public string? CodeDevisePrix { get; set; }
+
+        /// <summary>
+        /// Snapshot de la devise principale société au moment de la création.
+        /// </summary>
+        [MaxLength(3)]
+        public string? CodeDevisePrincipale { get; set; }
+
+        /// <summary>
+        /// Taux figé vers la devise principale (1 si même devise).
+        /// </summary>
+        [Column(TypeName = "decimal(18,6)")]
+        public decimal? TauxVersDevisePrincipale { get; set; }
+
+        /// <summary>
+        /// Montant consolidé en devise principale.
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? MontantDevisePrincipale { get; set; }
+
+        /// <summary>
         /// Date d'émission de la facture
         /// </summary>
         [DataType(DataType.Date)]

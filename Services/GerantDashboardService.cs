@@ -75,7 +75,7 @@ namespace Kenergie.Services
             var caMois = await _context.Paiements
                 .Where(p => !p.IsDeleted && p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                        p.DatePaiement.Month == DateTime.Now.Month && p.DatePaiement.Year == DateTime.Now.Year)
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
             // Factures du mois
             var currentMonthNum = DateTime.Now.Month.ToString();
@@ -90,7 +90,7 @@ namespace Kenergie.Services
             // Montant total des arriérés
             var montantArrieres = facturesMois
                 .Where(f => !f.Statut)
-                .Sum(f => f.MontantDu ?? 0);
+                .Sum(f => (f.MontantDuDevisePrincipale ?? f.MontantDu ?? 0));
 
             // Taux de recouvrement
             // NOTE: Utilise la même logique que les autres services - collecte du mois / factures du mois précédent
@@ -109,7 +109,7 @@ namespace Kenergie.Services
                            p.DatePaiement <= finMois &&
                            p.IdClient.HasValue && 
                            clientIds.Contains(p.IdClient.Value))
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
             // Factures du mois précédent
             var facturesMoisPrecedent = await _context.ClientFactures
@@ -117,7 +117,7 @@ namespace Kenergie.Services
                            f.Statut == true &&
                            f.Mois == moisPrecedentNormalise &&
                            f.Annees == debutMoisPrecedent.Year)
-                .SumAsync(f => f.Montant ?? 0);
+                .SumAsync(f => (f.MontantDevisePrincipale ?? f.Montant ?? 0));
 
             // Taux de recouvrement (collecte mois M / factures mois M-1)
             var tauxRecouvrement = facturesMoisPrecedent > 0
@@ -207,7 +207,7 @@ namespace Kenergie.Services
                 .Select(g => new
                 {
                     IdClient = g.Key,
-                    ChiffreAffaires = g.Sum(p => p.MontantPaye)
+                    ChiffreAffaires = g.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye))
                 })
                 .OrderByDescending(g => g.ChiffreAffaires)
                 .Take(5)
@@ -255,7 +255,7 @@ namespace Kenergie.Services
                 .Select(g => new
                 {
                     IdClient = g.Key,
-                    MontantArrieres = g.Sum(f => f.MontantDu!.Value)
+                    MontantArrieres = g.Sum(f => (f.MontantDuDevisePrincipale ?? f.MontantDu!.Value))
                 })
                 .OrderByDescending(g => g.MontantArrieres)
                 .Take(5)
@@ -357,7 +357,7 @@ namespace Kenergie.Services
                 return await _context.Paiements
                     .Where(p => !p.IsDeleted && p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                            p.DatePaiement.Month == mois && p.DatePaiement.Year == annee)
-                    .SumAsync(p => p.MontantPaye);
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
             });
 
             var recouvrementTendances = await GetTendanceMensuelleAsync(async (mois, annee) =>
@@ -413,13 +413,13 @@ namespace Kenergie.Services
                 .ToList();
 
             var joursEcoulesMois = now.Day;
-            var moyenneJournaliere = joursEcoulesMois > 0 ? paiementsMois.Sum(p => p.MontantPaye) / joursEcoulesMois : 0;
+            var moyenneJournaliere = joursEcoulesMois > 0 ? paiementsMois.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye)) / joursEcoulesMois : 0;
 
             return new PaiementsStatistiquesDto
             {
-                PaiementsJour = paiementsJour.Sum(p => p.MontantPaye),
-                PaiementsSemaine = paiementsSemaine.Sum(p => p.MontantPaye),
-                PaiementsMois = paiementsMois.Sum(p => p.MontantPaye),
+                PaiementsJour = paiementsJour.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye)),
+                PaiementsSemaine = paiementsSemaine.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye)),
+                PaiementsMois = paiementsMois.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye)),
                 NombrePaiementsJour = paiementsJour.Count,
                 NombrePaiementsSemaine = paiementsSemaine.Count,
                 NombrePaiementsMois = paiementsMois.Count,
@@ -518,7 +518,7 @@ namespace Kenergie.Services
                 .Where(p => !p.IsDeleted && p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                        p.DatePaiement.Month == DateTime.Now.AddMonths(-1).Month && 
                        p.DatePaiement.Year == DateTime.Now.AddMonths(-1).Year)
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
             return caMoisPrecedent > 0 ? ((caActuel - caMoisPrecedent) / caMoisPrecedent) * 100 : 0;
         }

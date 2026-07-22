@@ -12,11 +12,16 @@ namespace Kenergie.Services
     {
         private readonly KenergieDbContext _context;
         private readonly IClientFactureRepository _clientFactureRepository;
+        private readonly IDeviseConversionService _deviseConversionService;
 
-        public PaiementService(KenergieDbContext context, IClientFactureRepository clientFactureRepository)
+        public PaiementService(
+            KenergieDbContext context,
+            IClientFactureRepository clientFactureRepository,
+            IDeviseConversionService deviseConversionService)
         {
             _context = context;
             _clientFactureRepository = clientFactureRepository;
+            _deviseConversionService = deviseConversionService;
         }
 
         public async Task<IEnumerable<Paiement>> GetAllAsync()
@@ -171,6 +176,8 @@ namespace Kenergie.Services
                 paiement.Statut = "Validé";
             }
 
+            await ApplyPaiementDeviseSnapshotAsync(paiement);
+
             _context.Paiements.Add(paiement);
             await _context.SaveChangesAsync();
 
@@ -189,6 +196,89 @@ namespace Kenergie.Services
             await EnrichAndPersistPaiementClientFactureFieldsAsync(paiement);
 
             return paiement;
+        }
+
+        /// <summary>
+        /// Phase 1 : le paiement doit être dans la même devise que la ClientFacture / Facture.
+        /// </summary>
+        private async Task ApplyPaiementDeviseSnapshotAsync(Paiement paiement)
+        {
+            var clientFacture = await ResolveClientFactureForPaiementAsync(paiement);
+            string? codeFacture = clientFacture?.CodeDevisePrix;
+
+            if (string.IsNullOrWhiteSpace(codeFacture) && paiement.IdFacture.HasValue)
+            {
+                codeFacture = await _context.Factures
+                    .Where(f => f.IdFacture == paiement.IdFacture.Value)
+                    .Select(f => f.CodeDevisePrix)
+                    .FirstOrDefaultAsync();
+            }
+
+            var idSociete = await ResolveIdSocieteForPaiementAsync(paiement, clientFacture);
+            if (!idSociete.HasValue)
+                throw new InvalidOperationException("Impossible de résoudre la société pour le paiement.");
+
+            var principale = await _deviseConversionService.GetCodeDevisePrincipaleAsync(idSociete.Value);
+            codeFacture = DeviseConversionService.NormalizeCode(
+                !string.IsNullOrWhiteSpace(codeFacture) ? codeFacture! : principale);
+
+            var codePaiement = DeviseConversionService.NormalizeCode(
+                !string.IsNullOrWhiteSpace(paiement.CodeDevisePaiement)
+                    ? paiement.CodeDevisePaiement!
+                    : codeFacture);
+
+            if (!string.Equals(codePaiement, codeFacture, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException(
+                    $"Le paiement doit être dans la même devise que la facture ({codeFacture}). Devise reçue: {codePaiement}.");
+            }
+
+            var conversion = await _deviseConversionService.ConvertirVersPrincipaleAsync(
+                idSociete.Value, codePaiement, paiement.MontantPaye, paiement.DatePaiement);
+
+            paiement.CodeDevisePaiement = codePaiement;
+            paiement.CodeDevisePrincipale = principale;
+            paiement.TauxVersDevisePrincipale = conversion.Taux;
+            paiement.MontantPayeDevisePrincipale = conversion.MontantConverti;
+        }
+
+        private async Task<int?> ResolveIdSocieteForPaiementAsync(Paiement paiement, ClientFacture? clientFacture)
+        {
+            if (paiement.IdFacture.HasValue)
+            {
+                var fromFacture = await _context.Factures
+                    .Where(f => f.IdFacture == paiement.IdFacture.Value)
+                    .Select(f => (int?)f.Usage!.CategorieClient!.IdSociete)
+                    .FirstOrDefaultAsync();
+                if (fromFacture.HasValue) return fromFacture;
+            }
+
+            if (clientFacture != null)
+            {
+                if (clientFacture.IdFacture.HasValue)
+                {
+                    var fromCfFacture = await _context.Factures
+                        .Where(f => f.IdFacture == clientFacture.IdFacture.Value)
+                        .Select(f => (int?)f.Usage!.CategorieClient!.IdSociete)
+                        .FirstOrDefaultAsync();
+                    if (fromCfFacture.HasValue) return fromCfFacture;
+                }
+
+                return await _context.ClientUsages
+                    .Where(cu => cu.IdClient == clientFacture.IdClient && cu.Statut == true)
+                    .Select(cu => (int?)cu.Usage!.CategorieClient!.IdSociete)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (paiement.IdClient.HasValue)
+            {
+                return await _context.ClientUsages
+                    .Where(cu => cu.IdClient == paiement.IdClient.Value && cu.Statut == true)
+                    .Select(cu => (int?)cu.Usage!.CategorieClient!.IdSociete)
+                    .FirstOrDefaultAsync();
+            }
+
+            return null;
         }
 
         public async Task<Paiement?> UpdateAsync(Paiement paiement)
@@ -514,6 +604,7 @@ namespace Kenergie.Services
                 {
                     clientFacture.MontantDu = clientFacture.Montant.Value - montantPaye;
                 }
+                PaiementClientFactureEnrichment.RecalculateDevisePrincipaleBalances(clientFacture);
                 clientFacture.DateModification = DateTime.Now;
 
                 await _clientFactureRepository.UpdateAsync(clientFacture);
@@ -548,6 +639,7 @@ namespace Kenergie.Services
                 {
                     clientFacture.MontantDu = clientFacture.Montant.Value - clientFacture.MontantPaye.Value;
                 }
+                PaiementClientFactureEnrichment.RecalculateDevisePrincipaleBalances(clientFacture);
                 
                 clientFacture.DateModification = DateTime.Now;
 

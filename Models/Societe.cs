@@ -15,6 +15,13 @@ namespace Kenergie.Models
         public string? Nom { get; set; }
         public string? Devise { get; set; }
 
+        /// <summary>
+        /// Code ISO de la devise principale de la société (ex. CDF).
+        /// Distinct du champ Devise (slogan historique).
+        /// </summary>
+        [MaxLength(3)]
+        public string? CodeDevisePrincipale { get; set; }
+
         [MaxLength(50)]
         public string? Type { get; set; } // Privee, Publique, Conventionnee
         public string? Logo { get; set; }

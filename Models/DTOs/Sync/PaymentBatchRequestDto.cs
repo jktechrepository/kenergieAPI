@@ -81,5 +81,11 @@ namespace Kenergie.Models.DTOs.Sync
         /// </summary>
         [StringLength(50, ErrorMessage = "L'identifiant du device doit faire 50 caractères maximum")]
         public string? DeviceId { get; set; }
+
+        /// <summary>
+        /// Code devise du paiement (doit correspondre à la devise de la facture).
+        /// </summary>
+        [StringLength(3, MinimumLength = 3)]
+        public string? CodeDevisePaiement { get; set; }
     }
 }

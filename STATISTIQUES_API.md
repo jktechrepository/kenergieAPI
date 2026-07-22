@@ -1,5 +1,9 @@
 # 📊 API des Statistiques - Documentation Complète
 
+> Documentation de référence mise à jour : [`docs/API_DOCUMENTATION_STATISTIQUES.md`](docs/API_DOCUMENTATION_STATISTIQUES.md)
+>
+> Ce fichier reste conservé pour l'historique. Pour la reproduction dans un autre projet .NET, utilisez la documentation dans `docs/`.
+
 ## 🎯 Vue d'ensemble
 
 L'API Kenergie propose 5 endpoints de statistiques pour une analyse complète des données par société.

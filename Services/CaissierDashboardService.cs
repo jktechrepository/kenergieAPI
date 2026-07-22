@@ -99,7 +99,7 @@ namespace Kenergie.Services
                 .Where(p => !p.IsDeleted && p.DatePaiement.Date == DateTime.Today && 
                        p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                        (!idUtilisateur.HasValue || p.IdUtilisateur == idUtilisateur.Value))  // NOUVEAU FILTRE
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
             // Nombre de transactions du jour
             var nombreTransactions = await _context.Paiements
@@ -113,7 +113,7 @@ namespace Kenergie.Services
                 .Where(p => !p.IsDeleted && p.DatePaiement.Date == DateTime.Today && 
                        p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) &&
                        (!idUtilisateur.HasValue || p.IdUtilisateur == idUtilisateur.Value))  // NOUVEAU FILTRE
-                .Select(p => p.MontantPaye)
+                .Select(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye))
                 .ToListAsync();
 
             var plusGrosMontant = montants.Any() ? montants.Max() : 0;
@@ -122,7 +122,7 @@ namespace Kenergie.Services
             // Total des arriérés
             var totalArrieres = await _context.ClientFactures
                 .Where(f => clientIds.Contains(f.IdClient) && f.Statut == true)
-                .SumAsync(f => f.MontantDu ?? 0);
+                .SumAsync(f => (f.MontantDuDevisePrincipale ?? f.MontantDu ?? 0));
 
             return new CaissierStatistiquesDto
                 {
@@ -243,24 +243,24 @@ namespace Kenergie.Services
                            (!idUtilisateur.HasValue || p.IdUtilisateur == idUtilisateur.Value))  // NOUVEAU FILTRE
                     .ToListAsync();
 
-                var totalMontant = paiementsJour.Sum(p => p.MontantPaye);
+                var totalMontant = paiementsJour.Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
                 var nombreTransactions = paiementsJour.Count;
 
                 var recetteEspece = paiementsJour
                     .Where(p => p.MethodePaiement?.ToLower() == "espèces")
-                    .Sum(p => p.MontantPaye);
+                    .Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
                 
                 var recetteMobileMoney = paiementsJour
                     .Where(p => p.MethodePaiement?.ToLower().Contains("mobile") == true)
-                    .Sum(p => p.MontantPaye);
+                    .Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
                 
                 var recetteVirement = paiementsJour
                     .Where(p => p.MethodePaiement?.ToLower() == "virement")
-                    .Sum(p => p.MontantPaye);
+                    .Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
                 
                 var recetteCarte = paiementsJour
                     .Where(p => p.MethodePaiement?.ToLower() == "carte")
-                    .Sum(p => p.MontantPaye);
+                    .Sum(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 recettes.Add(new RecetteJournaliereDto
                 {
@@ -349,7 +349,7 @@ namespace Kenergie.Services
                        p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value) && 
                        p.Statut == "Validé" &&
                        (!idUtilisateur.HasValue || p.IdUtilisateur == idUtilisateur.Value))  // NOUVEAU FILTRE
-                .SumAsync(p => p.MontantPaye);
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
             // Solde initial (simulé - à adapter selon votre logique métier)
             var soldeInitial = 0m;

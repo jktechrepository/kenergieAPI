@@ -12,6 +12,25 @@ namespace Kenergie.Services
             paiement.IdClientFacture = clientFacture.IdClientFacture;
             paiement.MontantAPaye = clientFacture.Montant;
             paiement.ResteAPaye = clientFacture.MontantDu;
+            paiement.MontantAPayeDevisePrincipale = clientFacture.MontantDevisePrincipale;
+            paiement.ResteAPayeDevisePrincipale = clientFacture.MontantDuDevisePrincipale;
+        }
+
+        /// <summary>
+        /// Recalcule les montants consolidés ClientFacture à partir du taux snapshoté.
+        /// </summary>
+        public static void RecalculateDevisePrincipaleBalances(ClientFacture clientFacture)
+        {
+            var taux = clientFacture.TauxVersDevisePrincipale ?? 1m;
+            clientFacture.MontantPayeDevisePrincipale = Math.Round(
+                (clientFacture.MontantPaye ?? 0) * taux, 2, MidpointRounding.AwayFromZero);
+            clientFacture.MontantDuDevisePrincipale = Math.Round(
+                (clientFacture.MontantDu ?? 0) * taux, 2, MidpointRounding.AwayFromZero);
+            if (clientFacture.Montant.HasValue && !clientFacture.MontantDevisePrincipale.HasValue)
+            {
+                clientFacture.MontantDevisePrincipale = Math.Round(
+                    clientFacture.Montant.Value * taux, 2, MidpointRounding.AwayFromZero);
+            }
         }
 
         public static ClientFacture? Resolve(

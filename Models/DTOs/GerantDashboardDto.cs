@@ -46,6 +46,7 @@ namespace Kenergie.Models.DTOs
         /// Date de génération du dashboard
         /// </summary>
         public DateTime DateGeneration { get; set; } = DateTime.UtcNow;
+        public string? CodeDevisePrincipale { get; set; }
     }
 
     /// <summary>
