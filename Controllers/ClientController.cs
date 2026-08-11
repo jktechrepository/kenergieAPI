@@ -176,6 +176,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Client
         [HttpPost]
+        [Permission("Client.Create")]
         public async Task<ActionResult<Client>> CreateClient([FromBody] CreateClientWithUsagesDto dto)
         {
             if (!ModelState.IsValid)
@@ -234,6 +235,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Client/simple
         [HttpPost("simple")]
+        [Permission("Client.Create")]
         public async Task<ActionResult<Client>> CreateClientSimple(Client client)
         {
             if (!ModelState.IsValid)
@@ -260,6 +262,7 @@ namespace Kenergie.Controllers
 
         // PUT: api/Client/5
         [HttpPut("{id}")]
+        [Permission("Client.Update")]
         public async Task<ActionResult<Client>> UpdateClient(int id, [FromBody] UpdateClientWithUsagesDto dto)
         {
             if (!ModelState.IsValid)
@@ -340,6 +343,7 @@ namespace Kenergie.Controllers
 
         // DELETE: api/Client/5
         [HttpDelete("{id}")]
+        [Permission("Client.Delete")]
         public async Task<ActionResult<object>> DeleteClient(int id)
         {
             var exists = await _clientRepository.ExistsAsync(id);
@@ -393,6 +397,7 @@ namespace Kenergie.Controllers
 
         // PUT: api/Client/toggle-statut/{id}
         [HttpPut("toggle-statut/{id}")]
+        [Permission("Client.Delete")]
         public async Task<ActionResult<object>> ToggleStatut(int id)
         {
             try
@@ -421,7 +426,7 @@ namespace Kenergie.Controllers
 
         // PUT: api/Client/toggle-isActif/{id}
         [HttpPut("toggle-isActif/{id}")]
-        [Authorize]
+        [Permission("Client.Delete")]
         public async Task<ActionResult<object>> ToggleIsActif(int id)
         {
             try
@@ -642,6 +647,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Client/bulk-excel
         [HttpPost("bulk-excel")]
+        [Permission("Client.Create")]
         public async Task<ActionResult<BulkClientResult>> BulkInsertFromExcel(
             IFormFile file,
             [FromQuery] int idSociete)

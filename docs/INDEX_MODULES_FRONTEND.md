@@ -132,6 +132,8 @@ Ce document répertorie toutes les documentations API disponibles pour les équi
 - `GET /api/Paiement/electronique/{id}` - Statut pending
 - `POST /api/FlexPay/callback` - Webhook public
 - `GET /api/FlexPay/verifier/{orderNumber}` - Secours
+
+**Guide recette confirmation :** [`GUIDE_TEST_FLEXPAY_CONFIRMATION.md`](./GUIDE_TEST_FLEXPAY_CONFIRMATION.md)
 - `CRUD /api/InfoPaiementSociete` - Config marchand
 
 ---

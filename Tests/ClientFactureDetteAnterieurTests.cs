@@ -1,8 +1,10 @@
 using Kenergie.Data;
 using Kenergie.Models;
 using Kenergie.Services;
+using Kenergie.Services.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 namespace Kenergie.Tests
@@ -149,7 +151,10 @@ namespace Kenergie.Tests
 
         private static ClientFactureService CreateService(KenergieDbContext context)
         {
-            return new ClientFactureService(context, NullLogger<ClientFactureService>.Instance);
+            return new ClientFactureService(
+                context,
+                new Mock<IDeviseConversionService>().Object,
+                NullLogger<ClientFactureService>.Instance);
         }
 
         private static KenergieDbContext CreateInMemoryContext()

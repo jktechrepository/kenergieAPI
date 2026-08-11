@@ -7,8 +7,17 @@ using Xunit;
 
 namespace Kenergie.Tests
 {
+    /// <summary>
+    /// Non-régression du contrat Dashboard : périmètre actif (headcount) vs financier (montants / lignes factures).
+    /// Voir docs/ANALYSE_NON_REGRESSION_KPI_DASHBOARD_CLIENTS_FACTURES.md.
+    /// Ne pas affaiblir ces assertions lors d'un alignement KPI (préférer de nouveaux champs DISTINCT).
+    /// </summary>
     public class DashboardServiceFinancialStatsTests
     {
+        /// <summary>
+        /// CONTRAT : client IsActif=false compte dans collecte + nombreFactures + montants factures,
+        /// mais PAS dans TotalClientsActifs.
+        /// </summary>
         [Fact]
         public async Task GetDashboardDataAsync_IncludesInactiveClientInFinancialKpis_ButNotInHeadcount()
         {
@@ -44,7 +53,9 @@ namespace Kenergie.Tests
             var service = CreateDashboardService(context);
             var dashboard = await service.GetDashboardDataAsync(societeId);
 
+            // Headcount = actifs uniquement (client 1)
             Assert.Equal(1, dashboard.TotalClientsActifs);
+            // KPI financiers incluent l'inactif (client 2)
             Assert.Equal(500m, dashboard.CollecteMois.Montant);
             Assert.Equal(500m, dashboard.PaiementsDuMois);
             Assert.Equal(1, dashboard.CollecteMois.NombrePaiements);
@@ -52,6 +63,9 @@ namespace Kenergie.Tests
             Assert.Equal(1, dashboard.FactureMois.NombreFactures);
         }
 
+        /// <summary>
+        /// CONTRAT : Statut client false + ClientUsage inactif restent dans le périmètre financier (collecte).
+        /// </summary>
         [Fact]
         public async Task GetDashboardDataAsync_IncludesClientStatutFalse_WithInactiveClientUsageLink()
         {
@@ -82,6 +96,9 @@ namespace Kenergie.Tests
             Assert.Equal(1, dashboard.TotalClientsActifs);
         }
 
+        /// <summary>
+        /// CONTRAT : TotalGeneralArriere limité aux clients de la société (pas de fuite hors société).
+        /// </summary>
         [Fact]
         public async Task GetDashboardDataAsync_TotalGeneralArriere_ScopedToSocieteClients()
         {
@@ -144,6 +161,9 @@ namespace Kenergie.Tests
             return new KenergieDbContext(options);
         }
 
+        /// <summary>
+        /// Seed : client 1 actif + usage actif ; client 2 inactif mais lié (usage actif) → financier oui, headcount non.
+        /// </summary>
         private static void SeedSocieteWithClients(KenergieDbContext context, int societeId)
         {
             context.Societes.Add(new Societe { IdSociete = societeId, Nom = "Test SA" });

@@ -123,10 +123,14 @@ export interface PaiementElectroniquePendingDto {
   holdExpireAt: string         // ISO
   paymentUrl?: string | null
   flexPayAccepted: boolean
+  estConfirme: boolean           // true seulement si statut === Finalise
   idPaiementFinalise?: number | null
+  dateFinalisation?: string | null
   message?: string
 }
 ```
+
+**Ne jamais** traiter `flexPayAccepted=true` comme paiement réussi. Attendre `estConfirme=true` ou `statut=Finalise` (polling ou SignalR `PaiementElectroniqueStatusChanged`).
 
 Statuts UI recommandés :
 

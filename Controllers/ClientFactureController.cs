@@ -475,14 +475,21 @@ namespace Kenergie.Controllers
                 DateCreation = DateTime.Now
             };
 
-            var created = await _clientFactureRepository.CreateAsync(clientFacture);
+            try
+            {
+                var created = await _clientFactureRepository.CreateAsync(clientFacture);
 
-            // Audit
-            var ctx = this.GetAuditContext();
-            await _auditService.LogCreateAsync(created, ctx.UserId, ctx.UserName, ctx.UserRole, ctx.IdSociete, ctx.IpAddress, ctx.UserAgent, "Création ClientFacture");
+                // Audit
+                var ctx = this.GetAuditContext();
+                await _auditService.LogCreateAsync(created, ctx.UserId, ctx.UserName, ctx.UserRole, ctx.IdSociete, ctx.IpAddress, ctx.UserAgent, "Création ClientFacture");
 
-            var createdDto = await ConvertToDtoAsync(created);
-            return CreatedAtAction(nameof(GetClientFacture), new { id = created.IdClientFacture }, createdDto);
+                var createdDto = await ConvertToDtoAsync(created);
+                return CreatedAtAction(nameof(GetClientFacture), new { id = created.IdClientFacture }, createdDto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // POST: api/ClientFacture/pre-existant
@@ -502,22 +509,29 @@ namespace Kenergie.Controllers
                 return NotFound(new { message = "Client non trouvé" });
             }
 
-            var clientFacture = await _clientFactureRepository.CreatePreExistantAsync(
-                dto.IdClient,
-                dto.Montant,
-                dto.Mois,
-                dto.Annees,
-                dto.Description,
-                dto.DateEmission,
-                dto.CodeDevisePrix
-            );
+            try
+            {
+                var clientFacture = await _clientFactureRepository.CreatePreExistantAsync(
+                    dto.IdClient,
+                    dto.Montant,
+                    dto.Mois,
+                    dto.Annees,
+                    dto.Description,
+                    dto.DateEmission,
+                    dto.CodeDevisePrix
+                );
 
-            // Audit
-            var ctx = this.GetAuditContext();
-            await _auditService.LogCreateAsync(clientFacture, ctx.UserId, ctx.UserName, ctx.UserRole, ctx.IdSociete, ctx.IpAddress, ctx.UserAgent, "Création arriéré pré-existant");
+                // Audit
+                var ctx = this.GetAuditContext();
+                await _auditService.LogCreateAsync(clientFacture, ctx.UserId, ctx.UserName, ctx.UserRole, ctx.IdSociete, ctx.IpAddress, ctx.UserAgent, "Création arriéré pré-existant");
 
-            var dtoResult = await ConvertToDtoAsync(clientFacture);
-            return CreatedAtAction(nameof(GetClientFacture), new { id = clientFacture.IdClientFacture }, dtoResult);
+                var dtoResult = await ConvertToDtoAsync(clientFacture);
+                return CreatedAtAction(nameof(GetClientFacture), new { id = clientFacture.IdClientFacture }, dtoResult);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // PUT: api/ClientFacture/{id}

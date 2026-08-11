@@ -41,6 +41,8 @@ namespace Kenergie.Services
         public async Task<ClientFacture> CreateAsync(ClientFacture clientFacture)
         {
             clientFacture.DateCreation = DateTime.Now;
+
+            await EnsureClientEligibleForBillingPeriodAsync(clientFacture);
             
             // Calculer MontantDu si Montant et MontantPaye sont fournis
             if (clientFacture.Montant.HasValue && clientFacture.MontantPaye.HasValue)
@@ -58,6 +60,31 @@ namespace Kenergie.Services
             _context.ClientFactures.Add(clientFacture);
             await _context.SaveChangesAsync();
             return clientFacture;
+        }
+
+        private async Task EnsureClientEligibleForBillingPeriodAsync(ClientFacture clientFacture)
+        {
+            if (string.IsNullOrWhiteSpace(clientFacture.Mois) || !clientFacture.Annees.HasValue)
+                return;
+
+            var client = await _context.Clients
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.IdClient == clientFacture.IdClient);
+
+            if (client == null)
+                throw new InvalidOperationException($"Client {clientFacture.IdClient} introuvable.");
+
+            if (FactureBillingEligibilityHelper.IsClientEligibleForBillingPeriod(
+                    client.DateCreation,
+                    clientFacture.Mois,
+                    clientFacture.Annees.Value))
+                return;
+
+            throw new InvalidOperationException(
+                FactureBillingEligibilityHelper.BuildIneligibilityMessage(
+                    client.DateCreation,
+                    clientFacture.Mois,
+                    clientFacture.Annees.Value));
         }
 
         private async Task ApplyClientFactureDeviseSnapshotAsync(ClientFacture clientFacture)

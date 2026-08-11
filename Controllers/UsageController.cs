@@ -142,6 +142,7 @@ namespace Kenergie.Controllers
 
         // DELETE: api/Usage/5
         [HttpDelete("{id}")]
+        [Permission("Usage.Delete")]
         public async Task<ActionResult<object>> DeleteUsage(int id)
         {
             var usage = await _usageRepository.GetByIdAsync(id);

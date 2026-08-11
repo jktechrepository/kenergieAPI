@@ -440,12 +440,23 @@ namespace Kenergie.Services
 
                 var clientFacturesToCreate = new List<ClientFacture>();
                 var skippedDuplicates = 0;
+                var skippedLateRegistration = 0;
 
                 foreach (var clientUsage in clientUsages)
                 {
                     if (dejaFacturesClientIds.Contains(clientUsage.IdClient))
                     {
                         skippedDuplicates++;
+                        continue;
+                    }
+
+                    if (clientUsage.Client != null &&
+                        !FactureBillingEligibilityHelper.IsClientEligibleForBillingPeriod(
+                            clientUsage.Client.DateCreation,
+                            facture.MoisEmission,
+                            facture.AnneesEmission))
+                    {
+                        skippedLateRegistration++;
                         continue;
                     }
 
@@ -490,13 +501,15 @@ namespace Kenergie.Services
                     await _context.SaveChangesAsync();
                 }
 
-                if (skippedDuplicates > 0)
+                if (skippedDuplicates > 0 || skippedLateRegistration > 0)
                 {
                     _logger.LogInformation(
-                        "Facture {FactureId}: {Created} ClientFacture créée(s), {Skipped} client(s) ignoré(s) (déjà facturé(s) pour {Mois}/{Annee}, usage {Usage}, type {Type})",
+                        "Facture {FactureId}: {Created} ClientFacture créée(s), {SkippedDuplicates} client(s) ignoré(s) (déjà facturé(s)), {SkippedLateRegistration} client(s) ignoré(s) (enregistrés à partir du {CutoffDay}, période {Mois}/{Annee}, usage {Usage}, type {Type})",
                         facture.IdFacture,
                         clientFacturesToCreate.Count,
                         skippedDuplicates,
+                        skippedLateRegistration,
+                        FactureBillingEligibilityHelper.RegistrationBillingCutoffDay,
                         facture.MoisEmission,
                         facture.AnneesEmission,
                         facture.IdUsage,

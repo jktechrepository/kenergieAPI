@@ -248,6 +248,20 @@ namespace Kenergie.Tests
 
         private static void SeedInfrastructure(KenergieDbContext context)
         {
+            context.Societes.Add(new Societe
+            {
+                IdSociete = 1,
+                Nom = "Societe test",
+                Type = "Privée",
+                Statut = true
+            });
+            context.CategorieClients.Add(new CategorieClient
+            {
+                IdCategorie = 1,
+                NomCategorie = "Domestique",
+                IdSociete = 1,
+                Statut = true
+            });
             context.Usages.Add(new Usage
             {
                 IdUsage = IdUsage,
@@ -262,9 +276,31 @@ namespace Kenergie.Tests
             });
         }
 
+        private static Mock<IDeviseConversionService> CreateDeviseServiceMock()
+        {
+            var mock = new Mock<IDeviseConversionService>();
+            mock.Setup(s => s.GetCodeDevisePrincipaleAsync(It.IsAny<int>())).ReturnsAsync("CDF");
+            mock.Setup(s => s.ConvertirVersPrincipaleAsync(
+                    It.IsAny<int>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<DateTime>()))
+                .ReturnsAsync((int _, string code, decimal montant, DateTime date) => new ConversionResult
+                {
+                    CodeDeviseSource = code,
+                    CodeDeviseCible = "CDF",
+                    Taux = 1m,
+                    MontantSource = montant,
+                    MontantConverti = montant,
+                    DateReference = date
+                });
+            return mock;
+        }
+
         private static FactureService CreateFactureService(KenergieDbContext context)
         {
-            return new FactureService(context, new Mock<IClientFactureRepository>().Object, NullLogger<FactureService>.Instance);
+            return new FactureService(
+                context,
+                new Mock<IClientFactureRepository>().Object,
+                CreateDeviseServiceMock().Object,
+                NullLogger<FactureService>.Instance);
         }
 
         private static FactureNotificationService CreateNotificationService(KenergieDbContext context)

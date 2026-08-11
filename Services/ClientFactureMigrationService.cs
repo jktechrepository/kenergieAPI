@@ -45,6 +45,7 @@ namespace Kenergie.Services
                 _logger.LogInformation("📊 {Count} facture(s) active(s) trouvée(s)", factures.Count);
 
                 var clientFacturesCreated = 0;
+                var skippedLateRegistration = 0;
                 var errors = new List<string>();
 
                 foreach (var facture in factures)
@@ -70,6 +71,17 @@ namespace Kenergie.Services
 
                             if (exists)
                             {
+                                result.Skipped++;
+                                continue;
+                            }
+
+                            if (clientUsage.Client != null &&
+                                !FactureBillingEligibilityHelper.IsClientEligibleForBillingPeriod(
+                                    clientUsage.Client.DateCreation,
+                                    facture.MoisEmission,
+                                    facture.AnneesEmission))
+                            {
+                                skippedLateRegistration++;
                                 result.Skipped++;
                                 continue;
                             }
@@ -128,8 +140,8 @@ namespace Kenergie.Services
                 result.Success = errors.Count == 0;
 
                 _logger.LogInformation(
-                    "✅ Migration terminée: {Created} ClientFacture(s) créée(s), {Skipped} ignorée(s), {Errors} erreur(s) en {Duration}",
-                    clientFacturesCreated, result.Skipped, result.Errors, result.Duration);
+                    "✅ Migration terminée: {Created} ClientFacture(s) créée(s), {Skipped} ignorée(s) ({SkippedLateRegistration} enregistrement tardif), {Errors} erreur(s) en {Duration}",
+                    clientFacturesCreated, result.Skipped, skippedLateRegistration, result.Errors, result.Duration);
 
                 if (errors.Any())
                 {

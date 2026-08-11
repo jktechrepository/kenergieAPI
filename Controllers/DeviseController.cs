@@ -34,7 +34,7 @@ namespace Kenergie.Controllers
         /// Liste les devises actives (scope société hors Super-Admin).
         /// </summary>
         [HttpGet("devises")]
-        [AllowAnonymous]
+        [Authorize(Roles = RolesLecture)]
         public async Task<ActionResult<IEnumerable<DeviseDto>>> GetDevisesActives()
         {
             int? filter = _currentUserService.IsSuperAdmin ? null : _currentUserService.SocieteId;
@@ -43,7 +43,7 @@ namespace Kenergie.Controllers
         }
 
         [HttpGet("devises/{idDeviseMonetaire:int}")]
-        [AllowAnonymous]
+        [Authorize(Roles = RolesLecture)]
         public async Task<ActionResult<DeviseDto>> GetDevise(int idDeviseMonetaire)
         {
             var devise = await _deviseRepository.GetDeviseByIdAsync(idDeviseMonetaire);
@@ -168,7 +168,7 @@ namespace Kenergie.Controllers
         }
 
         [HttpGet("taux-change")]
-        [AllowAnonymous]
+        [Authorize(Roles = RolesLecture)]
         public async Task<ActionResult<TauxChangeDto>> GetDernierTauxChange(
             [FromQuery] int idSociete,
             [FromQuery] string source,
@@ -185,7 +185,7 @@ namespace Kenergie.Controllers
         }
 
         [HttpGet("preview-conversion")]
-        [AllowAnonymous]
+        [Authorize(Roles = RolesLecture)]
         public async Task<ActionResult<PreviewConversionDto>> PreviewConversion(
             [FromQuery] int idSociete,
             [FromQuery] string codeDeviseSource,

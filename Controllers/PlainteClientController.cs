@@ -19,17 +19,20 @@ namespace Kenergie.Controllers
     {
         private readonly IPlainteClientRepository _plainteRepository;
         private readonly IPlainteClientNotificationService _notificationService;
+        private readonly IPermissionService _permissionService;
         private readonly KenergieDbContext _context;
         private readonly ILogger<PlainteClientController> _logger;
 
         public PlainteClientController(
             IPlainteClientRepository plainteRepository,
             IPlainteClientNotificationService notificationService,
+            IPermissionService permissionService,
             KenergieDbContext context,
             ILogger<PlainteClientController> logger)
         {
             _plainteRepository = plainteRepository;
             _notificationService = notificationService;
+            _permissionService = permissionService;
             _context = context;
             _logger = logger;
         }
@@ -111,16 +114,16 @@ namespace Kenergie.Controllers
                 ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
             {
-                var utilisateur = await _context.Utilisateurs.FindAsync(userId);
-                // Vérifier si l'utilisateur a un rôle autorisé (Admin, Agent, Technicien, Gerant)
-                var isAuthorized = User.IsInRole("Super-Admin") || User.IsInRole("Admin") || 
-                                  User.IsInRole("Agent") || User.IsInRole("Technicien") || 
-                                  User.IsInRole("Gerant");
-                
-                // Si ce n'est pas un utilisateur autorisé, vérifier que c'est son client
-                if (!isAuthorized && (utilisateur == null || !utilisateur.IdClient.HasValue || utilisateur.IdClient.Value != plainte.IdClient))
+                var canViewAll = await _permissionService.UserHasPermissionAsync(userId, "PlainteClient.ReadAll")
+                    || await _permissionService.UserHasPermissionAsync(userId, "PlainteClient.Read");
+
+                if (!canViewAll)
                 {
-                    return Forbid();
+                    var utilisateur = await _context.Utilisateurs.FindAsync(userId);
+                    if (utilisateur == null || !utilisateur.IdClient.HasValue || utilisateur.IdClient.Value != plainte.IdClient)
+                    {
+                        return Forbid();
+                    }
                 }
             }
 

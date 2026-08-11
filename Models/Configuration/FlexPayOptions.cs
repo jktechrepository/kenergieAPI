@@ -24,6 +24,16 @@ namespace Kenergie.Models.Configuration
         /// <summary>Écart max accepté entre montant callback et montant attendu.</summary>
         public decimal MontantTolerance { get; set; } = 0.05m;
 
+        /// <summary>
+        /// Mobile Money : exiger providerReference dans le callback avant finalisation.
+        /// </summary>
+        public bool RequireProviderReferenceForMobileMoney { get; set; } = true;
+
+        /// <summary>
+        /// Délai minimal (secondes) entre initiation et callback avant finalisation (0 = désactivé).
+        /// </summary>
+        public int MinSecondsBeforeFinalize { get; set; } = 0;
+
         /// <summary>Forcer l'URL de production en développement (tests).</summary>
         public bool ForceProductionCallbackInDev { get; set; } = false;
     }

@@ -176,6 +176,7 @@ namespace Kenergie.Services
                 paiement.Statut = "Validé";
             }
 
+            await EnsureMontantNeDepassePasDuAsync(paiement);
             await ApplyPaiementDeviseSnapshotAsync(paiement);
 
             _context.Paiements.Add(paiement);
@@ -196,6 +197,24 @@ namespace Kenergie.Services
             await EnrichAndPersistPaiementClientFactureFieldsAsync(paiement);
 
             return paiement;
+        }
+
+        /// <summary>
+        /// Refuse un paiement dont le montant dépasse le reste à payer (ClientFacture.MontantDu).
+        /// Couvre arriérés (IdClientFacture) et factures système (IdFacture + IdClient).
+        /// </summary>
+        private async Task EnsureMontantNeDepassePasDuAsync(Paiement paiement)
+        {
+            var clientFacture = await ResolveClientFactureForPaiementAsync(paiement);
+            if (clientFacture == null)
+                return;
+
+            var montantDu = clientFacture.MontantDu ?? 0;
+            if (paiement.MontantPaye > montantDu)
+            {
+                throw new ArgumentException(
+                    $"Le montant payé ({paiement.MontantPaye}) dépasse le montant dû ({montantDu})");
+            }
         }
 
         /// <summary>

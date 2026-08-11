@@ -355,7 +355,11 @@ namespace Kenergie.Tests
         private static FactureService CreateFactureService(KenergieDbContext context)
         {
             var clientFactureRepo = new Mock<IClientFactureRepository>().Object;
-            return new FactureService(context, clientFactureRepo, NullLogger<FactureService>.Instance);
+            return new FactureService(
+                context,
+                clientFactureRepo,
+                new Mock<IDeviseConversionService>().Object,
+                NullLogger<FactureService>.Instance);
         }
 
         private static KenergieDbContext CreateInMemoryContext()

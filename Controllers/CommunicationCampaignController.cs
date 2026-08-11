@@ -2,6 +2,7 @@ using Kenergie.Models;
 using Kenergie.Models.DTOs.Communication;
 using Kenergie.Models.DTOs.Pagination;
 using Kenergie.Services.Repositories;
+using Kenergie.Attributes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +60,7 @@ namespace Kenergie.Controllers
 
         // POST: api/CommunicationCampaign
         [HttpPost]
+        [Permission("CommunicationCampaign.Create")]
         public async Task<ActionResult<CommunicationCampaign>> Create([FromBody] CreateCommunicationCampaignDto? dto)
         {
             if (dto == null)
@@ -133,6 +135,7 @@ namespace Kenergie.Controllers
 
         // PUT: api/CommunicationCampaign/5
         [HttpPut("{id}")]
+        [Permission("CommunicationCampaign.Update")]
         public async Task<ActionResult<CommunicationCampaign>> Update(int id, [FromBody] UpdateCommunicationCampaignDto dto)
         {
             if (!ModelState.IsValid)
@@ -186,7 +189,7 @@ namespace Kenergie.Controllers
 
         // DELETE: api/CommunicationCampaign/5
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Super-Admin,Admin")]
+        [Permission("CommunicationCampaign.Delete")]
         public async Task<ActionResult<object>> Delete(int id)
         {
             try
@@ -215,6 +218,7 @@ namespace Kenergie.Controllers
 
         // POST: api/CommunicationCampaign/5/execute
         [HttpPost("{id}/execute")]
+        [Permission("CommunicationCampaign.Update")]
         public async Task<ActionResult<CommunicationCampaignDispatchResult>> Execute(int id)
         {
             try

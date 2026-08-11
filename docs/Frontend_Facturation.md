@@ -48,3 +48,12 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 - Afficher les canaux activés selon les préférences utilisateur (retour en back déjà filtré).
 - Vérifier `statut` (true) pour afficher uniquement les factures actives.
 
+### Règle du 15 (enregistrement client)
+
+Lors de la création d'une `ClientFacture` (automatique ou manuelle), un client **enregistré le 15 ou après** dans le mois M **ne reçoit pas** la facture de ce mois M (même année). Les mois suivants ne sont pas concernés.
+
+- **Génération automatique** (`POST /api/Facture`, bulk) : la facture est créée ; les clients exclus n'ont pas de ligne `ClientFacture` (filtrage silencieux côté serveur, log applicatif).
+- **Création manuelle** (`POST /api/ClientFacture`, `POST /api/ClientFacture/pre-existant`, import Excel) : réponse **400** avec un message du type :
+  `"Ce client a été enregistré le 15/05/2026 (à partir du 15 du mois). Il ne peut pas recevoir la facture de 05/2026."`
+- **Date de référence** : `Client.dateCreation` au moment de l'enregistrement.
+

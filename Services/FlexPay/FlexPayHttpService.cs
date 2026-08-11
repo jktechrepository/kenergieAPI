@@ -136,13 +136,25 @@ namespace Kenergie.Services.FlexPay
                 var code = GetString(root, "code") ?? "1";
                 JsonElement tx = default;
                 var hasTx = root.TryGetProperty("transaction", out tx);
-                var status = hasTx ? GetString(tx, "status") : null;
+                var status = hasTx ? GetString(tx, "status") : GetString(root, "status");
+                var providerReference = hasTx
+                    ? GetString(tx, "providerReference") ?? GetString(tx, "provider_reference")
+                    : GetString(root, "providerReference") ?? GetString(root, "provider_reference");
 
-                var success = code == "0" || status == "0";
+                var isPending = FlexPayTransactionStatusHelper.IsPending(status);
+                var isConfirmed = FlexPayTransactionStatusHelper.IsConfirmed(status)
+                    || (code == "0"
+                        && !isPending
+                        && !string.IsNullOrWhiteSpace(providerReference));
+
                 return new FlexPayCheckResult
                 {
-                    Success = success,
-                    Code = success ? "0" : code,
+                    Success = isConfirmed,
+                    IsConfirmed = isConfirmed,
+                    IsPending = isPending && !isConfirmed,
+                    Code = isConfirmed ? "0" : code,
+                    TransactionStatus = status,
+                    ProviderReference = providerReference,
                     OrderNumber = orderNumber,
                     Reference = GetString(root, "reference") ?? (hasTx ? GetString(tx, "reference") : null),
                     Amount = GetString(root, "amount") ?? (hasTx ? GetString(tx, "amount") : null),

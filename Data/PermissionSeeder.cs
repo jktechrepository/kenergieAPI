@@ -45,6 +45,7 @@ namespace Kenergie.Data
             // AssignPermissionsToRolesAsync vérifie déjà les assignations existantes
             // et n'ajoute que les permissions manquantes
             await AssignPermissionsToRolesAsync(context);
+            await RevokeObsoleteRolePermissionsAsync(context);
             Console.WriteLine(" Vérification et assignation des permissions aux rôles terminée");
         }
 
@@ -321,7 +322,9 @@ namespace Kenergie.Data
                     p.Categorie == "Facture" ||
                     p.Categorie == "PlainteClient" ||
                     p.Categorie == "CommunicationCampaign" ||
-                    p.Categorie == "PanneSignalement"
+                    p.Categorie == "PanneSignalement" ||
+                    p.Categorie == "Paiement" ||
+                    (p.Categorie == "Axe" && (p.Action == "Create" || p.Action == "Read" || p.Action == "ReadAll"))
                 ).ToList();
 
                 // Vérifier les permissions déjà assignées
@@ -436,8 +439,8 @@ namespace Kenergie.Data
                     p.Categorie == "Cabine" ||
                     p.Categorie == "Usage" ||
                     p.Categorie == "TypeDeCourant" ||
-                    // Plaintes clients : Gestion complète
-                    p.Categorie == "PlainteClient" ||
+                    // Plaintes clients : lecture et gestion (sans suppression)
+                    (p.Categorie == "PlainteClient" && p.Action != "Delete") ||
                     // Campagnes de communication : Gestion complète
                     p.Categorie == "CommunicationCampaign"
                 ).ToList();
@@ -482,8 +485,8 @@ namespace Kenergie.Data
                 var agentDirectionCommercialPermissions = allPermissions.Where(p =>
                     // Dashboard commercial personnel
                     (p.Categorie == "Dashboard" && p.Action == "Read") ||
-                    // Clients : Création, lecture et mise à jour (pas de suppression)
-                    (p.Categorie == "Client" && (p.Action == "Create" || p.Action == "Read" || p.Action == "ReadAll" || p.Action == "Update")) ||
+                    // Clients : lecture et mise à jour (pas de création ni désactivation)
+                    (p.Categorie == "Client" && (p.Action == "Read" || p.Action == "ReadAll" || p.Action == "Update")) ||
                     // Statistiques commerciales personnelles
                     (p.Categorie == "Commercial" && p.Action == "Read") ||
                     // Catégorie Clients : Lecture
@@ -529,6 +532,8 @@ namespace Kenergie.Data
                 var caissierPermissions = allPermissions.Where(p =>
                     // Factures : Création et lecture uniquement (PAS modification ni suppression)
                     (p.Categorie == "Facture" && p.Action != "Update" && p.Action != "Delete") ||
+                    // Paiements : collecte (création et lecture)
+                    (p.Categorie == "Paiement" && (p.Action == "Create" || p.Action == "Read" || p.Action == "ReadAll" || p.Action == "Update")) ||
                     // Clients : Lecture seule (pour vérifier les factures)
                     (p.Categorie == "Client" && (p.Action == "Read" || p.Action == "ReadAll")) ||
                     // Catégorie Clients : Lecture seule
@@ -573,16 +578,16 @@ namespace Kenergie.Data
             if (financierRole != null)
             {
                 var financierPermissions = allPermissions.Where(p =>
-                    // 💰 GESTION FINANCIÈRE : Factures et paiements
+                    // 💰 GESTION FINANCIÈRE : Factures et paiements (sans modification ni suppression de paiements)
                     (p.Categorie == "Facture" && p.Action != "Update" && p.Action != "Delete") ||
-                    (p.Categorie == "Paiement") ||
+                    (p.Categorie == "Paiement" && p.Action != "Update" && p.Action != "Delete") ||
                     
                     // 👥 GESTION CLIENTS : CRUD complet pour la gestion financière
                     (p.Categorie == "Client") ||
                     (p.Categorie == "CategorieClient") ||
                     
-                    // ⚡ GESTION TECHNIQUE : Usages et types de courant pour la tarification
-                    (p.Categorie == "Usage") ||
+                    // ⚡ GESTION TECHNIQUE : Usages et types de courant (sans suppression)
+                    (p.Categorie == "Usage" && p.Action != "Delete") ||
                     (p.Categorie == "TypeDeCourant")
                 ).ToList();
 
@@ -689,7 +694,9 @@ namespace Kenergie.Data
                     // Plaintes : Création et lecture de ses propres plaintes
                     (p.Categorie == "PlainteClient" && (p.Action == "Create" || p.Action == "Read" || p.Action == "ReadAll")) ||
                     // Signalements de panne : Création et lecture de ses propres signalements
-                    (p.Categorie == "PanneSignalement" && (p.Action == "Create" || p.Action == "Read" || p.Action == "ReadAll"))
+                    (p.Categorie == "PanneSignalement" && (p.Action == "Create" || p.Action == "Read" || p.Action == "ReadAll")) ||
+                    // Paiement électronique de ses propres factures
+                    (p.Categorie == "Paiement" && p.Action == "Create")
                 ).ToList();
 
                 // Vérifier les permissions déjà assignées
@@ -724,6 +731,61 @@ namespace Kenergie.Data
             }
 
             await context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Retire les permissions obsolètes des rôles (idempotent).
+        /// Complète AssignPermissionsToRolesAsync qui n'ajoute jamais de révocations.
+        /// </summary>
+        private static async Task RevokeObsoleteRolePermissionsAsync(KenergieDbContext context)
+        {
+            var revocationsByName = new List<(string Role, string Permission)>
+            {
+                ("Agent Direction Commercial", "Client.Create"),
+                ("Financier", "Paiement.Update"),
+                ("Financier", "Usage.Delete"),
+                ("Responsable Commercial", "PlainteClient.Delete"),
+            };
+
+            var categoryRevocations = new List<(string Role, string Categorie)>
+            {
+                ("Agent Direction Commercial", "Paiement"),
+                ("Agent Direction Commercial", "Facture"),
+                ("Caissier", "CommunicationCampaign"),
+            };
+
+            var rolePermissions = await context.RolePermissions
+                .Include(rp => rp.Role)
+                .Include(rp => rp.Permission)
+                .ToListAsync();
+
+            var toRemove = new List<RolePermission>();
+
+            foreach (var (roleName, permissionName) in revocationsByName)
+            {
+                var match = rolePermissions.FirstOrDefault(rp =>
+                    rp.Role.Nom == roleName && rp.Permission.Nom == permissionName);
+                if (match != null)
+                    toRemove.Add(match);
+            }
+
+            foreach (var (roleName, categorie) in categoryRevocations)
+            {
+                toRemove.AddRange(rolePermissions.Where(rp =>
+                    rp.Role.Nom == roleName && rp.Permission.Categorie == categorie));
+            }
+
+            toRemove = toRemove.Distinct().ToList();
+
+            if (toRemove.Count == 0)
+            {
+                Console.WriteLine(" Aucune permission obsolète à révoquer");
+                return;
+            }
+
+            context.RolePermissions.RemoveRange(toRemove);
+            await context.SaveChangesAsync();
+            Console.WriteLine($" {toRemove.Count} permission(s) obsolète(s) révoquée(s)");
         }
     }
 }

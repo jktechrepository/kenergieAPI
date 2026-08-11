@@ -91,6 +91,9 @@ namespace Kenergie.Models.DTOs.FlexPay
         public string? PaymentUrl { get; set; }
         public bool FlexPayAccepted { get; set; }
         public int? IdPaiementFinalise { get; set; }
+        /// <summary>True uniquement si statut == Finalise.</summary>
+        public bool EstConfirme { get; set; }
+        public DateTime? DateFinalisation { get; set; }
         public string? Message { get; set; }
     }
 
@@ -128,7 +131,11 @@ namespace Kenergie.Models.DTOs.FlexPay
     public class FlexPayCheckResult
     {
         public bool Success { get; set; }
+        public bool IsConfirmed { get; set; }
+        public bool IsPending { get; set; }
         public string Code { get; set; } = "1";
+        public string? TransactionStatus { get; set; }
+        public string? ProviderReference { get; set; }
         public string? OrderNumber { get; set; }
         public string? Reference { get; set; }
         public string? Amount { get; set; }

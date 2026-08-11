@@ -78,7 +78,7 @@ namespace Kenergie.Controllers
 
         /// <summary>Initier un paiement électronique FlexPay (MM / carte).</summary>
         [HttpPost("electronique")]
-        [Authorize(Roles = "Super-Admin,Admin,Caissier,Financier,Responsable Commercial,Agent Direction Commercial")]
+        [Permission("Paiement.Create")]
         public async Task<ActionResult<PaiementElectroniquePendingDto>> InitierElectronique([FromBody] InitierPaiementElectroniqueDto dto)
         {
             if (!ModelState.IsValid)
@@ -208,9 +208,14 @@ namespace Kenergie.Controllers
 
         // POST: api/Paiement
         [HttpPost]
-        [Authorize(Roles = "Super-Admin,Admin,Caissier,Financier,Responsable Commercial,Agent Direction Commercial")]
+        [Permission("Paiement.Create")]
         public async Task<ActionResult<Paiement>> CreatePaiement([FromBody] CreatePaiementDto dto)
         {
+            if (string.Equals(_currentUserService.UserRole, "Client", StringComparison.OrdinalIgnoreCase))
+            {
+                return StatusCode(403, new { message = "Les clients doivent utiliser POST /api/Paiement/electronique." });
+            }
+
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
@@ -238,6 +243,27 @@ namespace Kenergie.Controllers
                 if (facture == null)
                 {
                     return NotFound(new { message = "Facture non trouvée" });
+                }
+
+                // Bloquer le surpaiement si on peut résoudre la ClientFacture (client + facture)
+                if (dto.IdClient.HasValue)
+                {
+                    var clientFactureSysteme = await _clientFactureRepository.GetByClientAndFactureAsync(
+                        dto.IdClient.Value,
+                        dto.IdFacture.Value);
+                    if (clientFactureSysteme != null)
+                    {
+                        var montantDuSysteme = clientFactureSysteme.MontantDu ?? 0;
+                        if (dto.MontantPaye > montantDuSysteme)
+                        {
+                            return BadRequest(new
+                            {
+                                message = $"Le montant payé ({dto.MontantPaye}) dépasse le montant dû ({montantDuSysteme})",
+                                montantDu = montantDuSysteme,
+                                montantPaye = dto.MontantPaye
+                            });
+                        }
+                    }
                 }
             }
             else if (dto.IdClientFacture.HasValue)
@@ -537,7 +563,7 @@ namespace Kenergie.Controllers
 
         // PUT: api/Paiement/5
         [HttpPut("{id}")]
-        [Authorize(Roles = "Super-Admin,Admin,Caissier,Financier,Responsable Commercial,Agent Direction Commercial")]
+        [Permission("Paiement.Update")]
         public async Task<ActionResult<UpdatePaiementResponseDto>> UpdatePaiement(int id, [FromBody] Paiement paiement)
         {
             if (id != paiement.IdPaiement)

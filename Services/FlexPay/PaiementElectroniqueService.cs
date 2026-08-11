@@ -16,7 +16,13 @@ namespace Kenergie.Services.FlexPay
     {
         Task<PaiementElectroniquePendingDto> InitierAsync(InitierPaiementElectroniqueDto dto, int idSociete, int? idUtilisateur);
         Task<PaiementElectroniquePendingDto?> GetPendingAsync(int idPending, int? idSocieteFilter);
-        Task<FlexPayCallbackResponseDto> ProcessCallbackAsync(FlexPayCallbackDto payload, string? payloadJson, string? headersJson, string? ip);
+        Task<FlexPayCallbackResponseDto> ProcessCallbackAsync(
+            FlexPayCallbackDto payload,
+            string? payloadJson,
+            string? headersJson,
+            string? ip,
+            bool fromVerifier = false,
+            string? transactionStatusFromCheck = null);
         Task<FlexPayCallbackResponseDto> VerifierAsync(string orderNumber);
     }
 
@@ -26,6 +32,7 @@ namespace Kenergie.Services.FlexPay
         private readonly IFlexPayHttpService _flexPayHttp;
         private readonly IInfoPaiementSocieteService _infoPaiement;
         private readonly IPaiementRepository _paiementRepository;
+        private readonly IPaiementFlexPayPostFinalizationService _postFinalizationService;
         private readonly FlexPayOptions _options;
         private readonly ILogger<PaiementElectroniqueService> _logger;
 
@@ -34,6 +41,7 @@ namespace Kenergie.Services.FlexPay
             IFlexPayHttpService flexPayHttp,
             IInfoPaiementSocieteService infoPaiement,
             IPaiementRepository paiementRepository,
+            IPaiementFlexPayPostFinalizationService postFinalizationService,
             IOptions<FlexPayOptions> options,
             ILogger<PaiementElectroniqueService> logger)
         {
@@ -41,6 +49,7 @@ namespace Kenergie.Services.FlexPay
             _flexPayHttp = flexPayHttp;
             _infoPaiement = infoPaiement;
             _paiementRepository = paiementRepository;
+            _postFinalizationService = postFinalizationService;
             _options = options.Value;
             _logger = logger;
         }
@@ -73,6 +82,8 @@ namespace Kenergie.Services.FlexPay
 
             // Vérifier que le client appartient à la société (via ClientFacture / usages)
             await EnsureClientSocieteAsync(idClient, idSociete);
+
+            await EnsureClientSelfPaymentAsync(idUtilisateur, idClient, dto.IdClient);
 
             var montant = dto.Montant ?? montantDu;
             if (montant <= 0)
@@ -222,7 +233,9 @@ namespace Kenergie.Services.FlexPay
             FlexPayCallbackDto payload,
             string? payloadJson,
             string? headersJson,
-            string? ip)
+            string? ip,
+            bool fromVerifier = false,
+            string? transactionStatusFromCheck = null)
         {
             var audit = new CallbackFlexPay
             {
@@ -245,6 +258,15 @@ namespace Kenergie.Services.FlexPay
                 await _context.SaveChangesAsync();
                 return new FlexPayCallbackResponseDto { Success = false, Message = "Pending introuvable" };
             }
+
+            var deltaSec = (DateTime.UtcNow - pending.DateCreation).TotalSeconds;
+            _logger.LogInformation(
+                "FlexPay callback reçu pending={IdPending} order={Order} code={Code} deltaSec={Delta:F2} fromVerifier={FromVerifier}",
+                pending.IdPaiementElectroniqueEnAttente,
+                payload.OrderNumber,
+                payload.Code,
+                deltaSec,
+                fromVerifier);
 
             await IncrementCallbacksAsync(pending.IdPaiementElectroniqueEnAttente);
 
@@ -273,6 +295,30 @@ namespace Kenergie.Services.FlexPay
                 return new FlexPayCallbackResponseDto { Success = false, Message = "Paiement refusé" };
             }
 
+            if (!IsPaymentConfirmed(
+                    payload,
+                    pending,
+                    fromVerifier,
+                    transactionStatusFromCheck,
+                    deltaSec,
+                    out var confirmationReason))
+            {
+                _logger.LogWarning(
+                    "FlexPay callback ignoré (non confirmé) pending={IdPending} deltaSec={Delta:F2} reason={Reason}",
+                    pending.IdPaiementElectroniqueEnAttente,
+                    deltaSec,
+                    confirmationReason);
+
+                audit.TraiteAvecSucces = true;
+                audit.MessageTraitement = $"CallbackIgnoredNotConfirmed:{confirmationReason}";
+                await _context.SaveChangesAsync();
+                return new FlexPayCallbackResponseDto
+                {
+                    Success = false,
+                    Message = confirmationReason
+                };
+            }
+
             if (!TryValidateMontantCallback(payload, pending, out var montantErreur))
             {
                 pending.Statut = StatutPaiementElectronique.Echec;
@@ -294,6 +340,8 @@ namespace Kenergie.Services.FlexPay
                 audit.TraiteAvecSucces = true;
                 audit.MessageTraitement = $"Finalisé Paiement#{paiement.IdPaiement}";
                 await _context.SaveChangesAsync();
+
+                await _postFinalizationService.NotifyAfterFinalizationAsync(pending, paiement);
 
                 return new FlexPayCallbackResponseDto
                 {
@@ -322,16 +370,92 @@ namespace Kenergie.Services.FlexPay
                 ?? throw new InvalidOperationException("Configuration marchand introuvable.");
 
             var check = await _flexPayHttp.VerifierTransactionAsync(marchand.ApiToken, orderNumber);
+
+            if (check.IsPending)
+            {
+                return new FlexPayCallbackResponseDto
+                {
+                    Success = false,
+                    Message = "Transaction en attente de confirmation FlexPay"
+                };
+            }
+
+            if (!check.IsConfirmed)
+            {
+                return new FlexPayCallbackResponseDto
+                {
+                    Success = false,
+                    Message = string.IsNullOrWhiteSpace(check.Message)
+                        ? "Transaction FlexPay non confirmée"
+                        : check.Message
+                };
+            }
+
             var synthetic = new FlexPayCallbackDto
             {
-                Code = check.Success ? "0" : check.Code,
+                Code = "0",
                 OrderNumber = orderNumber,
                 Reference = check.Reference ?? pending.Reference,
+                ProviderReference = check.ProviderReference,
                 Amount = check.Amount ?? pending.Montant.ToString(CultureInfo.InvariantCulture),
                 Currency = check.Currency ?? pending.CodeDevisePaiement
             };
 
-            return await ProcessCallbackAsync(synthetic, check.RawJson, null, "verifier");
+            return await ProcessCallbackAsync(
+                synthetic,
+                check.RawJson,
+                null,
+                "verifier",
+                fromVerifier: true,
+                transactionStatusFromCheck: check.TransactionStatus);
+        }
+
+        private bool IsPaymentConfirmed(
+            FlexPayCallbackDto payload,
+            PaiementElectroniqueEnAttente pending,
+            bool fromVerifier,
+            string? transactionStatusFromCheck,
+            double deltaSec,
+            out string reason)
+        {
+            reason = string.Empty;
+
+            if (fromVerifier)
+            {
+                if (FlexPayTransactionStatusHelper.IsConfirmed(transactionStatusFromCheck))
+                    return true;
+
+                reason = $"Statut FlexPay non confirmé: {transactionStatusFromCheck ?? "inconnu"}";
+                return false;
+            }
+
+            if (_options.MinSecondsBeforeFinalize > 0 && deltaSec < _options.MinSecondsBeforeFinalize)
+            {
+                reason =
+                    $"Callback reçu {deltaSec:F1}s après initiation (minimum {_options.MinSecondsBeforeFinalize}s)";
+                return false;
+            }
+
+            if (pending.Methode == MethodeFlexPay.MobileMoney && _options.RequireProviderReferenceForMobileMoney)
+            {
+                if (string.IsNullOrWhiteSpace(payload.ProviderReference))
+                {
+                    reason = "ProviderReference absent (Mobile Money non confirmé côté opérateur)";
+                    return false;
+                }
+            }
+
+            if (pending.Methode == MethodeFlexPay.CarteBancaire)
+            {
+                if (string.IsNullOrWhiteSpace(payload.ProviderReference)
+                    && string.IsNullOrWhiteSpace(payload.Channel))
+                {
+                    reason = "Confirmation carte insuffisante (providerReference/channel absent)";
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private async Task<Paiement> FinalizePaiementAsync(PaiementElectroniqueEnAttente pending, string? orderNumber)
@@ -469,6 +593,32 @@ namespace Kenergie.Services.FlexPay
                 throw new UnauthorizedAccessException("Le client n'appartient pas à votre société.");
         }
 
+        /// <summary>
+        /// Un utilisateur avec le rôle Client ne peut payer que ses propres factures.
+        /// </summary>
+        private async Task EnsureClientSelfPaymentAsync(int? idUtilisateur, int idClientCible, int? idClientDansDto)
+        {
+            if (!idUtilisateur.HasValue)
+                return;
+
+            var utilisateur = await _context.Utilisateurs
+                .Include(u => u.Role)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.IdUtilisateur == idUtilisateur.Value);
+
+            if (utilisateur?.Role?.Nom != "Client")
+                return;
+
+            if (!utilisateur.IdClient.HasValue)
+                throw new UnauthorizedAccessException("Compte client invalide.");
+
+            if (idClientDansDto.HasValue && idClientDansDto.Value != utilisateur.IdClient.Value)
+                throw new UnauthorizedAccessException("Vous ne pouvez payer que vos propres factures.");
+
+            if (idClientCible != utilisateur.IdClient.Value)
+                throw new UnauthorizedAccessException("Vous ne pouvez payer que vos propres factures.");
+        }
+
         private async Task ExpireAndCheckHoldAsync(int idSociete, string cleRessource)
         {
             var now = DateTime.UtcNow;
@@ -552,6 +702,8 @@ namespace Kenergie.Services.FlexPay
             PaymentUrl = p.PaymentUrl,
             FlexPayAccepted = accepted,
             IdPaiementFinalise = p.IdPaiementFinalise,
+            EstConfirme = p.Statut == StatutPaiementElectronique.Finalise,
+            DateFinalisation = p.DateFinalisation,
             Message = message ?? p.MessageErreur
         };
     }

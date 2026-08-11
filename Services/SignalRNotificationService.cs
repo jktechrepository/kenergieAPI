@@ -72,6 +72,40 @@ namespace Kenergie.Services
         }
 
         /// <summary>
+        /// Notifier un changement de statut paiement électronique FlexPay.
+        /// </summary>
+        public async Task NotifyPaiementElectroniqueStatusChangedAsync(
+            int societeId,
+            int idPending,
+            string statut,
+            int? idPaiementFinalise = null)
+        {
+            try
+            {
+                await _hubContext.Clients.Group($"dashboard_societe_{societeId}").SendAsync("PaiementElectroniqueStatusChanged", new
+                {
+                    societeId,
+                    idPending,
+                    statut,
+                    idPaiementFinalise,
+                    estConfirme = statut == Models.StatutPaiementElectronique.Finalise,
+                    timestamp = DateTime.UtcNow,
+                    type = "paiement_electronique_status"
+                });
+
+                _logger.LogInformation(
+                    "Paiement électronique status notification sent: pending={IdPending} statut={Statut} societe={SocieteId}",
+                    idPending, statut, societeId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error sending paiement electronique status for pending {IdPending} society {SocieteId}",
+                    idPending, societeId);
+            }
+        }
+
+        /// <summary>
         /// Notifier un nouveau client
         /// </summary>
         public async Task NotifyNewClientAsync(int societeId, object clientData)

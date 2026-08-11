@@ -64,6 +64,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Axe
         [HttpPost]
+        [Permission("Axe.Create")]
         public async Task<ActionResult<Axe>> CreateAxe(Axe axe)
         {
             if (!ModelState.IsValid)

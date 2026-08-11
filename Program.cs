@@ -248,6 +248,7 @@ builder.Services.AddHttpClient("FlexPay", client =>
 builder.Services.AddScoped<Kenergie.Services.FlexPay.IFlexPayHttpService, Kenergie.Services.FlexPay.FlexPayHttpService>();
 builder.Services.AddScoped<Kenergie.Services.FlexPay.IInfoPaiementSocieteService, Kenergie.Services.FlexPay.InfoPaiementSocieteService>();
 builder.Services.AddScoped<Kenergie.Services.FlexPay.IPaiementElectroniqueService, Kenergie.Services.FlexPay.PaiementElectroniqueService>();
+builder.Services.AddScoped<Kenergie.Services.FlexPay.IPaiementFlexPayPostFinalizationService, Kenergie.Services.FlexPay.PaiementFlexPayPostFinalizationService>();
 builder.Services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceService>();
 builder.Services.AddScoped<FactureNotificationService>(); // Service de diffusion multi-canal des factures
 builder.Services.AddScoped<ArrieresService>(); // Service de suivi des arriérés

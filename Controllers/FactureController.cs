@@ -131,6 +131,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Facture
         [HttpPost]
+        [Permission("Facture.Create")]
         public async Task<ActionResult<Facture>> CreateFacture(Facture facture)
         {
             if (!ModelState.IsValid)
@@ -183,6 +184,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Facture/bulk
         [HttpPost("bulk")]
+        [Permission("Facture.Create")]
         public async Task<ActionResult<BulkCreateFactureResponseDto>> CreateFacturesBulk([FromBody] BulkCreateFactureDto dto)
         {
             if (!ModelState.IsValid)
@@ -431,6 +433,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Facture/{idFacture}/societe/{idSociete}/diffusion
         [HttpPost("{idFacture}/societe/{idSociete}/diffusion")]
+        [Permission("Facture.Update")]
         public async Task<ActionResult<DiffusionFactureResponseDto>> DiffuserFacture(
             int idFacture, 
             int idSociete,
@@ -586,6 +589,7 @@ namespace Kenergie.Controllers
 
         // POST: api/Facture/societe/{idSociete}/diffusion/bulk
         [HttpPost("societe/{idSociete}/diffusion/bulk")]
+        [Permission("Facture.Update")]
         public async Task<ActionResult<DiffusionFactureBulkResponseDto>> DiffuserToutesFacturesEnAttente(int idSociete)
         {
             var startTime = DateTime.Now;

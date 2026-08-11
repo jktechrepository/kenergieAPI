@@ -58,6 +58,15 @@ namespace KenergieAPI.Services.Repositories
         Task NotifyNewPaiementAsync(int societeId, object paiementData);
 
         /// <summary>
+        /// Notifier un changement de statut d'un paiement électronique FlexPay (EnAttente → Finalise/Echec).
+        /// </summary>
+        Task NotifyPaiementElectroniqueStatusChangedAsync(
+            int societeId,
+            int idPending,
+            string statut,
+            int? idPaiementFinalise = null);
+
+        /// <summary>
         /// Notifier un changement de statut sur le dashboard
         /// </summary>
         Task NotifyDashboardStatusChangeAsync(int societeId, string entityType, int entityId, string newStatus);
