@@ -21,6 +21,18 @@ namespace Kenergie.Services
 
         public string UserRole => GetClaim(ClaimTypes.Role) ?? string.Empty;
 
+        /// <summary>
+        /// Rôle primaire du JWT (claim primaryRole), avec fallback sur UserRole.
+        /// </summary>
+        public string PrimaryRole
+        {
+            get
+            {
+                var primary = GetClaim("primaryRole");
+                return !string.IsNullOrWhiteSpace(primary) ? primary : UserRole;
+            }
+        }
+
         public int SocieteId => GetClaimAsInt("SocieteId", "idSociete");
 
         public string? SocieteNom => GetClaim("SocieteNom", "societe");

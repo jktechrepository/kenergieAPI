@@ -1,7 +1,6 @@
 using Kenergie.Models;
 using Kenergie.Models.DTOs;
 using Kenergie.Services.Repositories;
-using Kenergie.Attributes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 
@@ -13,28 +12,37 @@ namespace Kenergie.Controllers
     public class RoleController : ControllerBase
     {
         private readonly IRoleRepository _roleRepository;
+        private readonly ICurrentUserService _currentUserService;
 
-        public RoleController(IRoleRepository roleRepository)
+        public RoleController(IRoleRepository roleRepository, ICurrentUserService currentUserService)
         {
             _roleRepository = roleRepository;
+            _currentUserService = currentUserService;
         }
 
         // GET: api/Role
         /// <summary>
-        /// Récupère tous les rôles actifs
+        /// Récupère les rôles actifs visibles pour l'appelant
+        /// (exclut Client ; pas de rôles de niveau supérieur au sien).
         /// </summary>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Role>>> GetAllRoles()
         {
-            var roles = await _roleRepository.GetAllAsync();
+            var callerNiveau = await ResolveCallerNiveauAsync();
+            var roles = await _roleRepository.GetVisibleForCallerAsync(callerNiveau);
             return Ok(roles);
         }
 
         // GET: api/Role/nomRole/{nomRole}
+        /// <summary>
+        /// Même filtre que GET /api/Role : basé sur le rôle JWT de l'appelant
+        /// (le paramètre d'URL n'élargit pas les droits).
+        /// </summary>
         [HttpGet("nomRole/{nomRole}")]
         public async Task<ActionResult<IEnumerable<Role>>> GetRoles(string nomRole)
         {
-            var roles = await _roleRepository.GetAllAsync(nomRole);
+            var callerNiveau = await ResolveCallerNiveauAsync();
+            var roles = await _roleRepository.GetVisibleForCallerAsync(callerNiveau);
             return Ok(roles);
         }
 
@@ -146,6 +154,32 @@ namespace Kenergie.Controllers
             {
                 return StatusCode(500, new { message = "Erreur", error = ex.Message });
             }
+        }
+
+        /// <summary>
+        /// Niveau hiérarchique du rôle primaire JWT. Défaut 999 si inconnu/null (vue restrictive).
+        /// </summary>
+        private async Task<int> ResolveCallerNiveauAsync()
+        {
+            var roleName = _currentUserService.PrimaryRole;
+            if (string.IsNullOrWhiteSpace(roleName))
+                roleName = _currentUserService.UserRole;
+
+            if (string.IsNullOrWhiteSpace(roleName))
+                return 999;
+
+            // Préférer idRole si présent pour éviter les ambiguïtés de nom
+            var idRoleClaim = HttpContext.User.FindFirst("idRole")?.Value
+                ?? HttpContext.User.FindFirst("IdRole")?.Value;
+            if (int.TryParse(idRoleClaim, out var idRole) && idRole > 0)
+            {
+                var byId = await _roleRepository.GetByIdAsync(idRole);
+                if (byId != null)
+                    return byId.Niveau ?? 999;
+            }
+
+            var role = await _roleRepository.GetByNomAsync(roleName);
+            return role?.Niveau ?? 999;
         }
     }
 }

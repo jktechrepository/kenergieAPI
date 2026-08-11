@@ -22,6 +22,11 @@ namespace Kenergie.Services.Repositories
         string UserRole { get; }
 
         /// <summary>
+        /// Rôle primaire (claim JWT primaryRole), sinon UserRole
+        /// </summary>
+        string PrimaryRole { get; }
+
+        /// <summary>
         /// Méthode pour obtenir le rôle de l'utilisateur (compatibilité)
         /// </summary>
         string GetUserRole();

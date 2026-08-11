@@ -800,13 +800,23 @@ namespace Kenergie.Data
             
             if (existingRole != null)
             {
-                Console.WriteLine($"Rôle Super-Admin existe déjà avec l'ID: {existingRole.IdRole}");
+                if (existingRole.Niveau != 1)
+                {
+                    existingRole.Niveau = 1;
+                    await SaveChangesAsync();
+                    Console.WriteLine($"Rôle Super-Admin (ID {existingRole.IdRole}) : Niveau corrigé à 1");
+                }
+                else
+                {
+                    Console.WriteLine($"Rôle Super-Admin existe déjà avec l'ID: {existingRole.IdRole}");
+                }
                 return existingRole;
             }
             
             var newRole = new Role
             {
                 Nom = "Super-Admin",
+                Niveau = 1,
                 DateCreation = currentDate
             };
             

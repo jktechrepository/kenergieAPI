@@ -26,47 +26,37 @@ namespace Kenergie.Services
                 .ToListAsync();
         }
 
+        /// <inheritdoc />
+        public async Task<IEnumerable<Role>> GetVisibleForCallerAsync(int callerNiveau)
+        {
+            var query = _context.Roles
+                .Where(r => r.Statut == true)
+                .Where(r => r.Nom != "Client")
+                .Where(r => r.Niveau != null && r.Niveau >= callerNiveau);
+
+            // Filet de sécurité : seuls les Super-Admin (niveau 1) voient Super-Admin
+            if (callerNiveau > 1)
+            {
+                query = query.Where(r => r.Nom != "Super-Admin");
+            }
+
+            return await query
+                .OrderBy(r => r.Niveau)
+                .ThenBy(r => r.Nom)
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<Role>> GetAllAsync(string nomRole)
         {
-            if (!string.IsNullOrEmpty(nomRole))
-            {
-                if (nomRole == "Super-Admin")
-                {
-                    return await _context.Roles
-                        .Where(r => r.Statut == true) // ✅ Filtrer uniquement les rôles actifs
-                        .OrderBy(r => r.Nom)
-                        .ToListAsync();
-                }
-                else if (nomRole == "Admin")
-                {
-                    return await _context.Roles
-                        .Where(r => r.Statut == true) // ✅ Filtrer uniquement les rôles actifs
-                        .Where(r => r.Nom != "Super-Admin")
-                        .OrderBy(r => r.Nom)
-                        .ToListAsync();
-                }
-                else if (nomRole == "Gerant")
-                {
-                    return await _context.Roles
-                        .Where(r => r.Statut == true) // ✅ Filtrer uniquement les rôles actifs
-                        .Where(r => r.Nom != "Super-Admin" && r.Nom != "Admin")
-                        .OrderBy(r => r.Nom)
-                        .ToListAsync();
-                }
-                else
-                {
-                    return await _context.Roles
-                        .Where(r => r.Statut == true) // ✅ Filtrer uniquement les rôles actifs
-                        .Where(r => r.Nom != "Super-Admin" && r.Nom != "Admin" && r.Nom != "Gerant")
-                        .OrderBy(r => r.Nom)
-                        .ToListAsync();
-                }
+            if (string.IsNullOrEmpty(nomRole))
+                return Enumerable.Empty<Role>();
 
-            }
-            else
-            {
-                return null;
-            }
+            var callerRole = await _context.Roles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Nom == nomRole);
+
+            var callerNiveau = callerRole?.Niveau ?? 999;
+            return await GetVisibleForCallerAsync(callerNiveau);
         }
 
         public async Task<Role> GetByIdAsync(int id)
