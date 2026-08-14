@@ -114,6 +114,8 @@ Ce document répertorie toutes les documentations API disponibles pour les équi
 - `PUT /api/Devise/societe/{idSociete}/devise-principale/{codeDevise}` - Bascule principale
 - `POST /api/Devise/taux-change` - Créer un taux
 
+**Guide frontend équivalents USD (stats / dashboards) :** [`FRONTEND_INTEGRATION_RAPPORT_USD.md`](./FRONTEND_INTEGRATION_RAPPORT_USD.md)
+
 ---
 
 ### 6. Module FlexPay (paiement électronique)
@@ -138,7 +140,30 @@ Ce document répertorie toutes les documentations API disponibles pour les équi
 
 ---
 
-### 7. Guide d'intégration Frontend (Vue.js + Flutter)
+### 7. Module Dépenses
+**Fichier :** [`API_DOCUMENTATION_DEPENSE.md`](./API_DOCUMENTATION_DEPENSE.md)
+
+**Description :** Sorties d'argent par société : saisie par le Financier, validation / refus par Admin et Gérant. Seules les dépenses `Validee` entrent dans les totaux et dashboards.
+
+**Fonctionnalités principales :**
+- Workflow `EnAttente` → `Validee` / `Annulee`
+- Catégories de dépense par société
+- Rapport du mois + `syntheseDepense`
+- KPI dashboards (sorties, file d'attente)
+
+**Endpoints principaux :**
+- `GET /api/Depense` - Liste paginée
+- `GET /api/Depense/mois` - Rapport du mois (`statut` défaut `Validee`)
+- `POST /api/Depense` - Créer (Financier → `EnAttente`)
+- `POST /api/Depense/{id}/valider` - Valider (Admin, Gérant)
+- `POST /api/Depense/{id}/refuser` - Refuser (Admin, Gérant)
+- `CRUD /api/CategorieDepense` - Catégories
+
+**Guide frontend (Vue.js + Flutter) :** [`FRONTEND_INTEGRATION_DEPENSE.md`](./FRONTEND_INTEGRATION_DEPENSE.md)
+
+---
+
+### 8. Guide d'intégration Frontend (Vue.js + Flutter)
 **Fichier :** [`FRONTEND_INTEGRATION_MULTIDEVISE_FLEXPAY.md`](./FRONTEND_INTEGRATION_MULTIDEVISE_FLEXPAY.md)
 
 **Description :** Guide pratique pour brancher Multi-devises et FlexPay côté web (Vue.js) et mobile (Flutter) : endpoints, modèles, UX, polling, erreurs, checklist QA.

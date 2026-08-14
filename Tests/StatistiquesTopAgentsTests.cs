@@ -107,11 +107,16 @@ namespace Kenergie.Tests
         {
             var signalR = new Mock<ISignalRStatistiquesService>();
             var scope = new SocieteClientScopeService(context, NullLogger<SocieteClientScopeService>.Instance);
+            var usdEnrichment = new RapportFinancierUsdEnrichmentService(
+                context,
+                new DeviseConversionService(context),
+                NullLogger<RapportFinancierUsdEnrichmentService>.Instance);
             return new StatistiquesService(
                 context,
                 NullLogger<StatistiquesService>.Instance,
                 signalR.Object,
-                scope);
+                scope,
+                usdEnrichment);
         }
 
         private static KenergieDbContext CreateInMemoryContext()

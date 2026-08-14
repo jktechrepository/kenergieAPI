@@ -12,6 +12,7 @@ namespace Kenergie.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Super-Admin,Admin,Financier,Gerant,Responsable Commercial")]
     public class StatistiquesController : ControllerBase
     {
         private readonly IStatistiquesService _statistiquesService;

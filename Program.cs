@@ -238,6 +238,7 @@ builder.Services.AddScoped<IFactureRepository, FactureService>();
 builder.Services.AddScoped<IPaiementRepository, PaiementService>();
 builder.Services.AddScoped<IClientFactureRepository, ClientFactureService>();
 builder.Services.AddScoped<IDeviseConversionService, DeviseConversionService>();
+builder.Services.AddScoped<IRapportFinancierUsdEnrichmentService, RapportFinancierUsdEnrichmentService>();
 builder.Services.AddScoped<IDeviseRepository, DeviseService>();
 builder.Services.Configure<Kenergie.Models.Configuration.FlexPayOptions>(
     builder.Configuration.GetSection(Kenergie.Models.Configuration.FlexPayOptions.SectionName));
@@ -269,6 +270,8 @@ builder.Services.AddScoped<ICommunicationDispatchService, CommunicationDispatchS
 // Services de plaintes clients
 builder.Services.AddScoped<IPlainteClientRepository, PlainteClientService>();
 builder.Services.AddScoped<IPlainteClientNotificationService, PlainteClientNotificationService>();
+builder.Services.AddScoped<IDepenseRepository, DepenseService>();
+builder.Services.AddScoped<ICategorieDepenseRepository, CategorieDepenseService>();
 
 
 

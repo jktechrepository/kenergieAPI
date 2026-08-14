@@ -240,6 +240,25 @@ namespace Kenergie.Data
                 new Permission { Nom = "Paiement.Update", Categorie = "Paiement", Action = "Update", Description = "Modifier un paiement", Statut = true },
                 new Permission { Nom = "Paiement.Delete", Categorie = "Paiement", Action = "Delete", Description = "Supprimer un paiement", Statut = true },
 
+                // ═══════════════════════════════════════════════════════════════════
+                // DEPENSE - 6 permissions
+                // ═══════════════════════════════════════════════════════════════════
+                new Permission { Nom = "Depense.Create", Categorie = "Depense", Action = "Create", Description = "Créer une dépense", Statut = true },
+                new Permission { Nom = "Depense.Read", Categorie = "Depense", Action = "Read", Description = "Voir une dépense", Statut = true },
+                new Permission { Nom = "Depense.ReadAll", Categorie = "Depense", Action = "ReadAll", Description = "Voir toutes les dépenses", Statut = true },
+                new Permission { Nom = "Depense.Update", Categorie = "Depense", Action = "Update", Description = "Modifier une dépense", Statut = true },
+                new Permission { Nom = "Depense.Validate", Categorie = "Depense", Action = "Validate", Description = "Valider ou refuser une dépense", Statut = true },
+                new Permission { Nom = "Depense.Delete", Categorie = "Depense", Action = "Delete", Description = "Supprimer une dépense", Statut = true },
+
+                // ═══════════════════════════════════════════════════════════════════
+                // CATEGORIE DEPENSE - 5 permissions
+                // ═══════════════════════════════════════════════════════════════════
+                new Permission { Nom = "CategorieDepense.Create", Categorie = "CategorieDepense", Action = "Create", Description = "Créer une catégorie de dépense", Statut = true },
+                new Permission { Nom = "CategorieDepense.Read", Categorie = "CategorieDepense", Action = "Read", Description = "Voir une catégorie de dépense", Statut = true },
+                new Permission { Nom = "CategorieDepense.ReadAll", Categorie = "CategorieDepense", Action = "ReadAll", Description = "Voir toutes les catégories de dépense", Statut = true },
+                new Permission { Nom = "CategorieDepense.Update", Categorie = "CategorieDepense", Action = "Update", Description = "Modifier une catégorie de dépense", Statut = true },
+                new Permission { Nom = "CategorieDepense.Delete", Categorie = "CategorieDepense", Action = "Delete", Description = "Supprimer une catégorie de dépense", Statut = true },
+
             };
         }
 
@@ -283,6 +302,7 @@ namespace Kenergie.Data
                 
                 var permissionsToAdd = allPermissions
                     .Where(p => !existingSuperAdminPermissions.Contains(p.IdPermission))
+                    .Where(p => !(p.Categorie == "Depense" && (p.Action == "Create" || p.Action == "Validate")))
                     .ToList();
                 
                 foreach (var permission in permissionsToAdd)
@@ -321,6 +341,8 @@ namespace Kenergie.Data
                     p.Categorie == "CategorieClient" ||
                     p.Categorie == "Facture" ||
                     p.Categorie == "PlainteClient" ||
+                    (p.Categorie == "Depense" && p.Action != "Create") ||
+                    p.Categorie == "CategorieDepense" ||
                     p.Categorie == "CommunicationCampaign" ||
                     p.Categorie == "PanneSignalement" ||
                     p.Categorie == "Paiement" ||
@@ -376,6 +398,8 @@ namespace Kenergie.Data
                     // Factures : Création et lecture uniquement (PAS modification ni suppression)
                     (p.Categorie == "Facture" && p.Action != "Update" && p.Action != "Delete") ||
                     p.Categorie == "PlainteClient" ||
+                    (p.Categorie == "Depense" && (p.Action == "Read" || p.Action == "ReadAll" || p.Action == "Validate")) ||
+                    (p.Categorie == "CategorieDepense" && (p.Action == "Read" || p.Action == "ReadAll")) ||
                     p.Categorie == "CommunicationCampaign" ||
                     p.Categorie == "PanneSignalement"
                 ).ToList();
@@ -441,6 +465,9 @@ namespace Kenergie.Data
                     p.Categorie == "TypeDeCourant" ||
                     // Plaintes clients : lecture et gestion (sans suppression)
                     (p.Categorie == "PlainteClient" && p.Action != "Delete") ||
+                    // Dépenses : lecture seule
+                    (p.Categorie == "Depense" && (p.Action == "Read" || p.Action == "ReadAll")) ||
+                    (p.Categorie == "CategorieDepense" && p.Action == "Read") ||
                     // Campagnes de communication : Gestion complète
                     p.Categorie == "CommunicationCampaign"
                 ).ToList();
@@ -588,7 +615,11 @@ namespace Kenergie.Data
                     
                     // ⚡ GESTION TECHNIQUE : Usages et types de courant (sans suppression)
                     (p.Categorie == "Usage" && p.Action != "Delete") ||
-                    (p.Categorie == "TypeDeCourant")
+                    (p.Categorie == "TypeDeCourant") ||
+
+                    // 💸 DÉPENSES : saisie uniquement (pas de validation ni suppression)
+                    (p.Categorie == "Depense" && (p.Action == "Create" || p.Action == "Read" || p.Action == "ReadAll" || p.Action == "Update")) ||
+                    (p.Categorie == "CategorieDepense" && p.Action != "Delete")
                 ).ToList();
 
                 // Vérifier les permissions déjà assignées

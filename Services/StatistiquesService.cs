@@ -22,17 +22,20 @@ namespace Kenergie.Services
         private readonly ILogger<StatistiquesService> _logger;
         private readonly ISignalRStatistiquesService _signalRStatistiquesService;
         private readonly ISocieteClientScopeService _clientScope;
+        private readonly IRapportFinancierUsdEnrichmentService _usdEnrichment;
 
         public StatistiquesService(
             KenergieDbContext context,
             ILogger<StatistiquesService> logger,
             ISignalRStatistiquesService signalRStatistiquesService,
-            ISocieteClientScopeService clientScope)
+            ISocieteClientScopeService clientScope,
+            IRapportFinancierUsdEnrichmentService usdEnrichment)
         {
             _context = context;
             _logger = logger;
             _signalRStatistiquesService = signalRStatistiquesService;
             _clientScope = clientScope;
+            _usdEnrichment = usdEnrichment;
         }
 
         /// <summary>
@@ -109,7 +112,9 @@ namespace Kenergie.Services
                     TauxRecouvrement = tauxRecouvrement,
                     TotalPaiementsCount = totalPaiementsCount,
                     DateGeneration = DateTime.Now,
-                    CodeDevisePrincipale = codeDevisePrincipale
+                    CodeDevisePrincipale = codeDevisePrincipale,
+                    SyntheseUsd = await _usdEnrichment.BuildStatistiquesGeneralesSyntheseUsdAsync(
+                        idSociete, totalArrieres, totalPaiements)
                 };
 
                 _logger.LogInformation("✅ Statistiques générales calculées avec succès pour la société {SocieteId}: {Clients} clients, {Factures} factures, {Arrieres:C} arriérés, {Paiements:C} payés", 
@@ -193,7 +198,9 @@ namespace Kenergie.Services
                     EvolutionMensuelle = evolutionMensuelle,
                     RepartitionPaiements = repartitionPaiements,
                     DateGeneration = DateTime.Now,
-                    CodeDevisePrincipale = codeDevisePrincipale
+                    CodeDevisePrincipale = codeDevisePrincipale,
+                    SyntheseUsd = await _usdEnrichment.BuildStatistiquesFinancieresSyntheseUsdAsync(
+                        idSociete, chiffreAffaires, montantArrieres, montantPaye, montantDu)
                 };
 
                 _logger.LogInformation("✅ Statistiques financières calculées avec succès pour la société {SocieteId}: CA={CA:C}, Arriérés={Arriérés:C}, Payé={Payé:C}", 

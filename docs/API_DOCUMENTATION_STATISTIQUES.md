@@ -108,6 +108,21 @@ GET /api/Statistiques/generales/1?idAxe=4&idUsage=2
   "totalPaiements": 26000.00,
   "tauxRecouvrement": 99.00,
   "totalPaiementsCount": 2,
+  "codeDevisePrincipale": "CDF",
+  "syntheseUsd": {
+    "totalArrieres": {
+      "montantEquivalentUsd": 1044.40,
+      "tauxVersUsd": 0.0004,
+      "dateTaux": "2026-08-14T16:00:00Z",
+      "conversionUsdDisponible": true
+    },
+    "totalPaiements": {
+      "montantEquivalentUsd": 10.40,
+      "tauxVersUsd": 0.0004,
+      "dateTaux": "2026-08-14T16:00:00Z",
+      "conversionUsdDisponible": true
+    }
+  },
   "dateGeneration": "2026-02-15T22:45:27.96525+02:00"
 }
 ```
@@ -148,6 +163,33 @@ GET /api/Statistiques/financieres/1?debut=2026-01-01&fin=2026-02-28&idCategorieC
   "montantArrieres": 2611000.00,
   "montantPaye": 26000.00,
   "montantDu": 2611000.00,
+  "codeDevisePrincipale": "CDF",
+  "syntheseUsd": {
+    "chiffreAffaires": {
+      "montantEquivalentUsd": 1054.80,
+      "tauxVersUsd": 0.0004,
+      "dateTaux": "2026-08-14T16:00:00Z",
+      "conversionUsdDisponible": true
+    },
+    "montantArrieres": {
+      "montantEquivalentUsd": 1044.40,
+      "tauxVersUsd": 0.0004,
+      "dateTaux": "2026-08-14T16:00:00Z",
+      "conversionUsdDisponible": true
+    },
+    "montantPaye": {
+      "montantEquivalentUsd": 10.40,
+      "tauxVersUsd": 0.0004,
+      "dateTaux": "2026-08-14T16:00:00Z",
+      "conversionUsdDisponible": true
+    },
+    "montantDu": {
+      "montantEquivalentUsd": 1044.40,
+      "tauxVersUsd": 0.0004,
+      "dateTaux": "2026-08-14T16:00:00Z",
+      "conversionUsdDisponible": true
+    }
+  },
   "evolutionMensuelle": [
     {
       "mois": "janvier 2026",

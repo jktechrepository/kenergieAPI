@@ -1,6 +1,7 @@
 using Kenergie.Data;
 using Kenergie.Models;
 using Kenergie.Models.DTOs;
+using Kenergie.Services.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +14,16 @@ namespace Kenergie.Services
     {
         private readonly KenergieDbContext _context;
         private readonly ILogger<GerantDashboardService> _logger;
+        private readonly IRapportFinancierUsdEnrichmentService _usdEnrichment;
 
-        public GerantDashboardService(KenergieDbContext context, ILogger<GerantDashboardService> logger)
+        public GerantDashboardService(
+            KenergieDbContext context,
+            ILogger<GerantDashboardService> logger,
+            IRapportFinancierUsdEnrichmentService usdEnrichment)
         {
             _context = context;
             _logger = logger;
+            _usdEnrichment = usdEnrichment;
         }
 
         /// <summary>
@@ -127,6 +133,25 @@ namespace Kenergie.Services
             // Variation CA par rapport au mois précédent
             var variationCA = await CalculateVariationCAMoisPrecedent(idSociete, caMois);
 
+            var montantDepensesMois = await _context.Depenses
+                .Where(d => !d.IsDeleted
+                    && d.IdSociete == idSociete
+                    && d.Statut == DepenseStatuts.Validee
+                    && d.DateDepense >= debutMois
+                    && d.DateDepense <= finMois)
+                .SumAsync(d => d.MontantDevisePrincipale ?? d.Montant);
+
+            var nombreDepensesAValider = await _context.Depenses
+                .CountAsync(d => !d.IsDeleted
+                    && d.IdSociete == idSociete
+                    && d.Statut == DepenseStatuts.EnAttente);
+
+            var montantDepensesEnAttente = await _context.Depenses
+                .Where(d => !d.IsDeleted
+                    && d.IdSociete == idSociete
+                    && d.Statut == DepenseStatuts.EnAttente)
+                .SumAsync(d => d.Montant);
+
             return new SocieteStatistiquesDto
             {
                 NomSociete = societe.Nom,
@@ -134,10 +159,15 @@ namespace Kenergie.Services
                 ClientsActifs = clientsActifs.Count,
                 ChiffreAffairesMois = caMois,
                 MontantTotalArrieres = montantArrieres,
+                MontantDepensesMois = montantDepensesMois,
+                NombreDepensesAValider = nombreDepensesAValider,
+                MontantDepensesEnAttente = montantDepensesEnAttente,
                 TauxRecouvrement = tauxRecouvrement,
                 VariationCAMoisPrecedent = variationCA,
                 TotalFacturesMois = facturesMois.Count,
-                FacturesPayeesMois = facturesMois.Count(f => f.Statut)
+                FacturesPayeesMois = facturesMois.Count(f => f.Statut),
+                SyntheseUsd = await _usdEnrichment.BuildSocieteStatistiquesSyntheseUsdAsync(
+                    idSociete, caMois, montantArrieres)
             };
         }
 

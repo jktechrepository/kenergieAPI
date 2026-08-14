@@ -1,6 +1,7 @@
 using Kenergie.Models.DTOs;
 using Kenergie.Models;
 using Kenergie.Data;
+using Kenergie.Services.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
@@ -15,15 +16,18 @@ namespace Kenergie.Services
         private readonly KenergieDbContext _context;
         private readonly ILogger<DashboardService> _logger;
         private readonly ISocieteClientScopeService _clientScope;
+        private readonly IRapportFinancierUsdEnrichmentService _usdEnrichment;
 
         public DashboardService(
             KenergieDbContext context,
             ILogger<DashboardService> logger,
-            ISocieteClientScopeService clientScope)
+            ISocieteClientScopeService clientScope,
+            IRapportFinancierUsdEnrichmentService usdEnrichment)
         {
             _context = context;
             _logger = logger;
             _clientScope = clientScope;
+            _usdEnrichment = usdEnrichment;
         }
 
         /// <summary>
@@ -64,6 +68,11 @@ namespace Kenergie.Services
 
                 // 8. Top 10 agents collecteurs
                 dashboard.Top10AgentsCollecteurs = await GetTop10AgentsCollecteursAsync(societeId, financialClientIds);
+
+                dashboard.SyntheseUsd = await _usdEnrichment.BuildDashboardSyntheseUsdAsync(
+                    societeId,
+                    dashboard.PaiementsDuMois,
+                    dashboard.TotalGeneralArriere);
 
                 return dashboard;
             }

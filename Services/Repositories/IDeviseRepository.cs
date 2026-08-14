@@ -10,7 +10,7 @@ namespace Kenergie.Services.Repositories
         Task<DeviseDto> UpdateDeviseAsync(int idDeviseMonetaire, UpdateDeviseDto dto);
         Task SetDevisePrincipaleAsync(int idSociete, string codeDevise);
         Task<TauxChangeDto> CreateTauxChangeAsync(CreateTauxChangeDto dto);
-        Task<TauxChangeDto?> GetDernierTauxChangeAsync(int idSociete, string source, string cible);
+        Task<IEnumerable<TauxChangeDto>> GetTauxChangesAsync(int? idSociete, string? source, string? cible);
         Task<PreviewConversionDto> PreviewConversionAsync(int idSociete, string codeDeviseSource, decimal montant, DateTime datePaiement);
         Task EnsureDevisePrincipaleCdfAsync(int idSociete);
     }

@@ -73,6 +73,47 @@ namespace Kenergie.Tests
         }
 
         [Fact]
+        public async Task GetStatistiquesFinancieres_PopulatesSyntheseUsd_WhenRateAvailable()
+        {
+            const int societeId = 1;
+            var now = DateTime.Now;
+
+            await using var context = CreateInMemoryContext();
+            SeedSocieteWithClients(context, societeId);
+            context.DevisesMonetaires.Add(new DeviseMonetaire
+            {
+                IdSociete = societeId,
+                CodeDevise = "USD",
+                Libelle = "Dollar US",
+                Statut = true
+            });
+            context.TauxChanges.Add(new TauxChange
+            {
+                IdSociete = societeId,
+                CodeDeviseSource = "CDF",
+                CodeDeviseCible = "USD",
+                Taux = 0.001m,
+                DateEffet = now.AddDays(-1)
+            });
+            context.Paiements.Add(new Paiement
+            {
+                IdClient = 1,
+                MontantPaye = 1000m,
+                DatePaiement = now,
+                IsDeleted = false,
+                Statut = "Validé"
+            });
+            await context.SaveChangesAsync();
+
+            var service = CreateStatistiquesService(context);
+            var stats = await service.GetStatistiquesFinancieresAsync(societeId);
+
+            Assert.NotNull(stats.SyntheseUsd);
+            Assert.True(stats.SyntheseUsd!.ChiffreAffaires!.ConversionUsdDisponible);
+            Assert.Equal(1m, stats.SyntheseUsd.ChiffreAffaires.MontantEquivalentUsd);
+        }
+
+        [Fact]
         public async Task GetStatistiquesGenerales_ActiveHeadcount_ExcludesIsActifFalse()
         {
             const int societeId = 1;
@@ -264,11 +305,16 @@ namespace Kenergie.Tests
         {
             var signalR = new Mock<ISignalRStatistiquesService>();
             var scope = new SocieteClientScopeService(context, NullLogger<SocieteClientScopeService>.Instance);
+            var usdEnrichment = new RapportFinancierUsdEnrichmentService(
+                context,
+                new DeviseConversionService(context),
+                NullLogger<RapportFinancierUsdEnrichmentService>.Instance);
             return new StatistiquesService(
                 context,
                 NullLogger<StatistiquesService>.Instance,
                 signalR.Object,
-                scope);
+                scope,
+                usdEnrichment);
         }
 
         private static KenergieDbContext CreateInMemoryContext()

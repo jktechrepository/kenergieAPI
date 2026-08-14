@@ -354,8 +354,12 @@ namespace Kenergie.Services
             // Solde initial (simulé - à adapter selon votre logique métier)
             var soldeInitial = 0m;
 
-            // Total des sorties (simulé - à adapter selon votre logique métier)
-            var totalSorties = 0m;
+            var totalSorties = await _context.Depenses
+                .Where(d => !d.IsDeleted
+                    && d.IdSociete == societeId
+                    && d.Statut == DepenseStatuts.Validee
+                    && d.DateDepense.Date == DateTime.Today)
+                .SumAsync(d => d.MontantDevisePrincipale ?? d.Montant);
 
             var soldeFinal = soldeInitial + totalEntrees - totalSorties;
             var ecart = 0m; // À calculer selon votre logique de caisse

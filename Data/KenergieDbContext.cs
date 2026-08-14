@@ -53,6 +53,8 @@ namespace Kenergie.Data
         public DbSet<TransactionFlexPay> TransactionsFlexPay { get; set; }
         public DbSet<CallbackFlexPay> CallbacksFlexPay { get; set; }
         public DbSet<PaiementHold> PaiementHolds { get; set; }
+        public DbSet<CategorieDepense> CategorieDepenses { get; set; }
+        public DbSet<Depense> Depenses { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -732,6 +734,60 @@ namespace Kenergie.Data
                 .Property(ac => ac.DateCreation)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP(6)")
                 .IsRequired();
+
+            modelBuilder.Entity<CategorieDepense>(e =>
+            {
+                e.ToTable("CategorieDepenses");
+                e.HasOne(c => c.Societe)
+                    .WithMany()
+                    .HasForeignKey(c => c.IdSociete)
+                    .IsRequired()
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(c => new { c.IdSociete, c.NomCategorie })
+                    .IsUnique()
+                    .HasDatabaseName("IX_CategorieDepense_Societe_Nom");
+            });
+
+            modelBuilder.Entity<Depense>(e =>
+            {
+                e.ToTable("Depenses");
+                e.HasOne(d => d.Societe)
+                    .WithMany()
+                    .HasForeignKey(d => d.IdSociete)
+                    .IsRequired()
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(d => d.CategorieDepense)
+                    .WithMany(c => c.Depenses)
+                    .HasForeignKey(d => d.IdCategorieDepense)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(d => d.UtilisateurCreateur)
+                    .WithMany()
+                    .HasForeignKey(d => d.IdUtilisateurCreateur)
+                    .IsRequired()
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(d => d.UtilisateurValidateur)
+                    .WithMany()
+                    .HasForeignKey(d => d.IdUtilisateurValidateur)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(d => d.Cabine)
+                    .WithMany()
+                    .HasForeignKey(d => d.IdCabine)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(d => d.Axe)
+                    .WithMany()
+                    .HasForeignKey(d => d.IdAxe)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasIndex(d => new { d.IdSociete, d.DateDepense })
+                    .HasDatabaseName("IX_Depense_Societe_Date");
+                e.HasIndex(d => new { d.IdSociete, d.Statut })
+                    .HasDatabaseName("IX_Depense_Societe_Statut");
+                e.HasIndex(d => d.IdUtilisateurCreateur)
+                    .HasDatabaseName("IX_Depense_UtilisateurCreateur");
+            });
         }
 
         /// <summary>

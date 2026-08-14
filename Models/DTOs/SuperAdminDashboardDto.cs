@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Kenergie.Models.DTOs.Devise;
 
 namespace Kenergie.Models.DTOs
 {
@@ -102,6 +103,11 @@ namespace Kenergie.Models.DTOs
         /// Nombre total de paiements enregistrés
         /// </summary>
         public int TotalPaiements { get; set; }
+
+        /// <summary>
+        /// Équivalents USD indicatifs des montants synthèse (taux du jour).
+        /// </summary>
+        public GlobalStatistiquesSyntheseUsdDto? SyntheseUsd { get; set; }
     }
 
     /// <summary>

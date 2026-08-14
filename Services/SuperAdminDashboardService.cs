@@ -1,6 +1,7 @@
 using Kenergie.Models.DTOs;
 using Kenergie.Models;
 using Kenergie.Data;
+using Kenergie.Services.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +14,16 @@ namespace Kenergie.Services
     {
         private readonly KenergieDbContext _context;
         private readonly ILogger<SuperAdminDashboardService> _logger;
+        private readonly IRapportFinancierUsdEnrichmentService _usdEnrichment;
 
-        public SuperAdminDashboardService(KenergieDbContext context, ILogger<SuperAdminDashboardService> logger)
+        public SuperAdminDashboardService(
+            KenergieDbContext context,
+            ILogger<SuperAdminDashboardService> logger,
+            IRapportFinancierUsdEnrichmentService usdEnrichment)
         {
             _context = context;
             _logger = logger;
+            _usdEnrichment = usdEnrichment;
         }
 
         /// <summary>
@@ -62,36 +68,126 @@ namespace Kenergie.Services
         private async Task<GlobalStatistiquesDto> GetGlobalStatisticsAsync()
         {
             var totalSocietes = await _context.Societes.CountAsync();
+            var societesActives = await _context.Societes.CountAsync(s => s.Statut == true);
             var totalClients = await _context.Clients.CountAsync();
-            var totalAgents = await _context.Agents.CountAsync();
-            var totalUtilisateurs = await _context.Utilisateurs.CountAsync();
+            var clientsActifs = await _context.Clients.CountAsync(c => c.IsActif && c.Statut);
 
-            // Chiffre d'affaires du mois en cours
-            var caMoisEnCours = await _context.Paiements
-                .Where(p => !p.IsDeleted && p.DatePaiement.Month == DateTime.Now.Month && 
-                       p.DatePaiement.Year == DateTime.Now.Year)
+            var debutMois = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            var finMois = debutMois.AddMonths(1).AddTicks(-1);
+
+            var chiffreAffairesGlobal = await _context.Paiements
+                .Where(p => !p.IsDeleted &&
+                            p.DatePaiement >= debutMois &&
+                            p.DatePaiement <= finMois)
                 .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
-            // Taux de recouvrement du mois en cours
-            var currentMonthNum = DateTime.Now.Month.ToString();
-            var facturesMoisEnCours = await _context.ClientFactures
-                .Where(f => f.Annees == DateTime.Now.Year)
-                .ToListAsync();
-            
-            facturesMoisEnCours = facturesMoisEnCours
-                .Where(f => f.Mois.Contains(currentMonthNum))
-                .ToList();
+            var montantTotalPaiementsGlobal = await _context.Paiements
+                .Where(p => !p.IsDeleted)
+                .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
-            var tauxRecouvrement = facturesMoisEnCours.Any() 
-                ? (decimal)facturesMoisEnCours.Count(f => f.Statut) / facturesMoisEnCours.Count * 100 
-                : 0;
+            var montantTotalArrieresGlobal = await _context.ClientFactures
+                .Where(cf => cf.Statut == true &&
+                             cf.MontantDu.HasValue &&
+                             cf.MontantDu.Value > 0)
+                .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
+
+            var totalFactures = await _context.ClientFactures.CountAsync(cf => cf.Statut == true);
+            var totalPaiements = await _context.Paiements.CountAsync(p => !p.IsDeleted);
+
+            var facturesMoisPrecedent = await _context.ClientFactures
+                .Where(cf => cf.Statut == true &&
+                             cf.Mois == debutMois.AddMonths(-1).Month.ToString("00") &&
+                             cf.Annees == debutMois.AddMonths(-1).Year)
+                .SumAsync(cf => (cf.MontantDevisePrincipale ?? cf.Montant ?? 0));
+
+            var tauxRecouvrementGlobal = facturesMoisPrecedent > 0
+                ? Math.Round((chiffreAffairesGlobal / facturesMoisPrecedent) * 100, 2)
+                : (chiffreAffairesGlobal > 0 ? 100 : 0);
+
+            var syntheseItems = await BuildGlobalStatistiquesSyntheseItemsAsync(debutMois, finMois);
 
             return new GlobalStatistiquesDto
             {
                 TotalSocietes = totalSocietes,
-                TauxRecouvrementGlobal = totalClients,
-                SocietesActives = totalAgents,
+                SocietesActives = societesActives,
+                TotalClients = totalClients,
+                ClientsActifs = clientsActifs,
+                ChiffreAffairesGlobal = chiffreAffairesGlobal,
+                MontantTotalArrieresGlobal = montantTotalArrieresGlobal,
+                MontantTotalPaiementsGlobal = montantTotalPaiementsGlobal,
+                TauxRecouvrementGlobal = tauxRecouvrementGlobal,
+                TotalFactures = totalFactures,
+                TotalPaiements = totalPaiements,
+                SyntheseUsd = await _usdEnrichment.BuildGlobalStatistiquesSyntheseUsdAsync(syntheseItems)
             };
+        }
+
+        private async Task<List<(int IdSociete, decimal ChiffreAffaires, decimal MontantArrieres, decimal MontantPaiements)>> BuildGlobalStatistiquesSyntheseItemsAsync(
+            DateTime debutMois,
+            DateTime finMois)
+        {
+            var societes = await _context.Societes.Where(s => s.Statut == true).ToListAsync();
+            var items = new List<(int IdSociete, decimal ChiffreAffaires, decimal MontantArrieres, decimal MontantPaiements)>();
+
+            foreach (var societe in societes)
+            {
+                var clientIds = await GetSocieteClientIdsAsync(societe.IdSociete);
+                if (!clientIds.Any())
+                {
+                    items.Add((societe.IdSociete, 0, 0, 0));
+                    continue;
+                }
+
+                var chiffreAffaires = await _context.Paiements
+                    .Where(p => !p.IsDeleted &&
+                                p.DatePaiement >= debutMois &&
+                                p.DatePaiement <= finMois &&
+                                p.IdClient.HasValue &&
+                                clientIds.Contains(p.IdClient.Value))
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
+
+                var montantArrieres = await _context.ClientFactures
+                    .Where(cf => cf.Statut == true &&
+                                 cf.MontantDu.HasValue &&
+                                 cf.MontantDu.Value > 0 &&
+                                 clientIds.Contains(cf.IdClient))
+                    .SumAsync(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
+
+                var montantPaiements = await _context.Paiements
+                    .Where(p => !p.IsDeleted &&
+                                p.IdClient.HasValue &&
+                                clientIds.Contains(p.IdClient.Value))
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
+
+                items.Add((societe.IdSociete, chiffreAffaires, montantArrieres, montantPaiements));
+            }
+
+            return items;
+        }
+
+        private async Task<List<int>> GetSocieteClientIdsAsync(int idSociete)
+        {
+            var categorieIds = await _context.CategorieClients
+                .Where(cc => cc.IdSociete == idSociete)
+                .Select(cc => cc.IdCategorie)
+                .ToListAsync();
+
+            if (!categorieIds.Any())
+                return new List<int>();
+
+            var usageIds = await _context.Usages
+                .Where(u => categorieIds.Contains(u.IdCategorieClient))
+                .Select(u => u.IdUsage)
+                .ToListAsync();
+
+            if (!usageIds.Any())
+                return new List<int>();
+
+            return await _context.ClientUsages
+                .Where(cu => usageIds.Contains(cu.IdUsage))
+                .Select(cu => cu.IdClient)
+                .Distinct()
+                .ToListAsync();
         }
 
         /// <summary>

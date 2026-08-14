@@ -150,7 +150,11 @@ namespace Kenergie.Tests
         private static DashboardService CreateDashboardService(KenergieDbContext context)
         {
             var scope = new SocieteClientScopeService(context, NullLogger<SocieteClientScopeService>.Instance);
-            return new DashboardService(context, NullLogger<DashboardService>.Instance, scope);
+            var usdEnrichment = new RapportFinancierUsdEnrichmentService(
+                context,
+                new DeviseConversionService(context),
+                NullLogger<RapportFinancierUsdEnrichmentService>.Instance);
+            return new DashboardService(context, NullLogger<DashboardService>.Instance, scope, usdEnrichment);
         }
 
         private static KenergieDbContext CreateInMemoryContext()

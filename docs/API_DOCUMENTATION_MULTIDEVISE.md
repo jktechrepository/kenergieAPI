@@ -68,7 +68,27 @@ Tous les endpoints `api/Devise` requièrent un JWT.
 ### Taux de change
 
 - `POST /api/Devise/taux-change`
-- `GET /api/Devise/taux-change?idSociete=1&source=USD&cible=CDF`
+- `GET /api/Devise/taux-change` — liste ; query optionnels : `idSociete`, `source`, `cible`
+
+Sans filtres : Super-Admin voit tous les taux ; les autres rôles sont limités à leur société.  
+Avec `source` / `cible` : historique de la paire (tri `dateEffet` puis `dateCreation` descendant).  
+Réponse : tableau `TauxChangeDto[]` (`[]` si aucun résultat).
+
+```json
+[
+  {
+    "idTauxChange": 12,
+    "idSociete": 1,
+    "codeDeviseSource": "USD",
+    "codeDeviseCible": "CDF",
+    "taux": 2850.50,
+    "dateEffet": "2026-07-14T10:30:00Z",
+    "dateCreation": "2026-07-14T10:30:00Z"
+  }
+]
+```
+
+Création :
 
 ```json
 {
@@ -111,6 +131,12 @@ Sync offline (`POST` batch paiements) : même champ `codeDevisePaiement` + même
 
 Les montants des endpoints stats / dashboards sont consolidés en devise principale.  
 Les DTO exposent `codeDevisePrincipale` (ex. stats générales / financières).
+
+Un bloc **indicatif** `syntheseUsd` (taux du jour, pas un snapshot de facture) donne l’équivalent USD des KPI synthèse. Afficher `montantEquivalentUsd` seulement si `conversionUsdDisponible` est `true`.
+
+Guide frontend (Vue.js + Flutter) : [`FRONTEND_INTEGRATION_RAPPORT_USD.md`](./FRONTEND_INTEGRATION_RAPPORT_USD.md)
+
+Prérequis : devise `USD` active + taux **principale → USD**. Si une société d’un agrégat n’a pas de taux, tout le bloc agrégé passe à `conversionUsdDisponible: false`. `tauxVersUsd` est `null` lorsque plusieurs sociétés sont sommées.
 
 ---
 

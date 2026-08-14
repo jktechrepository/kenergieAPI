@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Kenergie.Models.DTOs.Devise;
 
 namespace Kenergie.Models.DTOs.Statistiques
 {
@@ -48,6 +49,11 @@ namespace Kenergie.Models.DTOs.Statistiques
         /// Code ISO de la devise principale de la société (agrégats consolidés).
         /// </summary>
         public string? CodeDevisePrincipale { get; set; }
+
+        /// <summary>
+        /// Équivalents USD indicatifs des montants synthèse (taux du jour).
+        /// </summary>
+        public StatistiquesGeneralesSyntheseUsdDto? SyntheseUsd { get; set; }
     }
 
     /// <summary>
@@ -80,6 +86,11 @@ namespace Kenergie.Models.DTOs.Statistiques
         /// Code ISO de la devise principale (montants consolidés).
         /// </summary>
         public string? CodeDevisePrincipale { get; set; }
+
+        /// <summary>
+        /// Équivalents USD indicatifs des montants synthèse (taux du jour).
+        /// </summary>
+        public StatistiquesFinancieresSyntheseUsdDto? SyntheseUsd { get; set; }
 
         /// <summary>
         /// Évolution mensuelle des montants

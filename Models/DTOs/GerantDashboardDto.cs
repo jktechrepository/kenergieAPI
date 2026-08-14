@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Kenergie.Models.DTOs.Devise;
 
 namespace Kenergie.Models.DTOs
 {
@@ -80,6 +81,21 @@ namespace Kenergie.Models.DTOs
         public decimal MontantTotalArrieres { get; set; }
 
         /// <summary>
+        /// Total des dépenses validées du mois en cours (devise principale).
+        /// </summary>
+        public decimal MontantDepensesMois { get; set; }
+
+        /// <summary>
+        /// Nombre de dépenses en attente de validation pour la société.
+        /// </summary>
+        public int NombreDepensesAValider { get; set; }
+
+        /// <summary>
+        /// Montant indicatif des dépenses en attente (non comptabilisé).
+        /// </summary>
+        public decimal MontantDepensesEnAttente { get; set; }
+
+        /// <summary>
         /// Taux de recouvrement du mois
         /// </summary>
         public decimal TauxRecouvrement { get; set; }
@@ -98,6 +114,11 @@ namespace Kenergie.Models.DTOs
         /// Nombre de factures payées du mois
         /// </summary>
         public int FacturesPayeesMois { get; set; }
+
+        /// <summary>
+        /// Équivalents USD indicatifs des montants synthèse (taux du jour).
+        /// </summary>
+        public SocieteStatistiquesSyntheseUsdDto? SyntheseUsd { get; set; }
     }
 
     /// <summary>

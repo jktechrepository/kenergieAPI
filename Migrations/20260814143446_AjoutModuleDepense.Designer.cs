@@ -3,6 +3,7 @@ using System;
 using Kenergie.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Kenergie.Migrations
 {
     [DbContext(typeof(KenergieDbContext))]
-    partial class KenergieDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814143446_AjoutModuleDepense")]
+    partial class AjoutModuleDepense
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

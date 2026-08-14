@@ -203,18 +203,31 @@ namespace Kenergie.Services
             return MapTaux(taux);
         }
 
-        public async Task<TauxChangeDto?> GetDernierTauxChangeAsync(int idSociete, string source, string cible)
+        public async Task<IEnumerable<TauxChangeDto>> GetTauxChangesAsync(int? idSociete, string? source, string? cible)
         {
-            var s = DeviseConversionService.NormalizeCode(source);
-            var c = DeviseConversionService.NormalizeCode(cible);
+            var query = _context.TauxChanges.AsNoTracking();
 
-            var taux = await _context.TauxChanges
-                .AsNoTracking()
-                .Where(t => t.IdSociete == idSociete && t.CodeDeviseSource == s && t.CodeDeviseCible == c)
+            if (idSociete.HasValue)
+                query = query.Where(t => t.IdSociete == idSociete.Value);
+
+            if (!string.IsNullOrWhiteSpace(source))
+            {
+                var s = DeviseConversionService.NormalizeCode(source);
+                query = query.Where(t => t.CodeDeviseSource == s);
+            }
+
+            if (!string.IsNullOrWhiteSpace(cible))
+            {
+                var c = DeviseConversionService.NormalizeCode(cible);
+                query = query.Where(t => t.CodeDeviseCible == c);
+            }
+
+            var taux = await query
                 .OrderByDescending(t => t.DateEffet)
-                .FirstOrDefaultAsync();
+                .ThenByDescending(t => t.DateCreation)
+                .ToListAsync();
 
-            return taux == null ? null : MapTaux(taux);
+            return taux.Select(MapTaux).ToList();
         }
 
         public async Task<PreviewConversionDto> PreviewConversionAsync(int idSociete, string codeDeviseSource, decimal montant, DateTime datePaiement)

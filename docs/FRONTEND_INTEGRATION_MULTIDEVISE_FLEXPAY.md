@@ -24,8 +24,11 @@ Références API détaillées :
 | Montants en devise d’origine **et** devise principale | Afficher les deux quand l’origine ≠ principale |
 | Paiement CASH = même devise que la facture | Bloquer le submit si mismatch |
 | Stats / dashboards déjà consolidés côté API | Afficher `codeDevisePrincipale` + montant retourné |
+| Équivalent USD indicatif (`syntheseUsd`) | Afficher `montantEquivalentUsd` seulement si `conversionUsdDisponible` |
 
 `Societe.Devise` = slogan. Ne pas l’utiliser comme code ISO. Utiliser `codeDevisePrincipale`.
+
+Guide dashboards / stats USD : [`FRONTEND_INTEGRATION_RAPPORT_USD.md`](./FRONTEND_INTEGRATION_RAPPORT_USD.md)
 
 ### 1.2 FlexPay vs CASH
 
@@ -53,7 +56,7 @@ FlexPay n’accepte que **CDF** et **USD**. Si `ClientFacture.codeDevisePrix` ho
 | Modifier devise | PUT | `/api/Devise/devises/{id}` | Admin, Gérant, Super-Admin |
 | Devise principale | PUT | `/api/Devise/societe/{idSociete}/devise-principale/{code}` | Admin, Gérant, Super-Admin |
 | Créer taux | POST | `/api/Devise/taux-change` | Admin, Gérant, Super-Admin |
-| Dernier taux | GET | `/api/Devise/taux-change?idSociete=&source=&cible=` | même lecture que liste devises |
+| Lister taux | GET | `/api/Devise/taux-change` (`idSociete`, `source`, `cible` optionnels) | même lecture que liste devises |
 | Preview conversion | GET | `/api/Devise/preview-conversion?...` | même lecture que liste devises |
 
 ### 2.2 Facturation / paiement CASH (champs nouveaux)
@@ -207,8 +210,8 @@ export const deviseApi = {
   setPrincipale: (idSociete: number, code: string) =>
     api.put(`/api/Devise/societe/${idSociete}/devise-principale/${code}`),
   createTaux: (body: any) => api.post('/api/Devise/taux-change', body),
-  getTaux: (idSociete: number, source: string, cible: string) =>
-    api.get('/api/Devise/taux-change', { params: { idSociete, source, cible } }),
+  listTaux: (params?: { idSociete?: number; source?: string; cible?: string }) =>
+    api.get('/api/Devise/taux-change', { params }),
   preview: (params: {
     idSociete: number
     codeDeviseSource: string

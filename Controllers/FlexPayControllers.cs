@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using Kenergie.Models.DTOs.FlexPay;
 using Kenergie.Services.FlexPay;
 using Kenergie.Services.Repositories;
@@ -12,21 +13,46 @@ namespace Kenergie.Controllers
     public class FlexPayController : ControllerBase
     {
         private readonly IPaiementElectroniqueService _paiementElectroniqueService;
+        private readonly ICurrentUserService _currentUserService;
 
-        public FlexPayController(IPaiementElectroniqueService paiementElectroniqueService)
+        public FlexPayController(
+            IPaiementElectroniqueService paiementElectroniqueService,
+            ICurrentUserService currentUserService)
         {
             _paiementElectroniqueService = paiementElectroniqueService;
+            _currentUserService = currentUserService;
         }
 
         /// <summary>Webhook FlexPay — public, sans JWT.</summary>
         [HttpPost("callback")]
         [AllowAnonymous]
-        public async Task<ActionResult<FlexPayCallbackResponseDto>> Callback([FromBody] FlexPayCallbackDto? dto)
+        public async Task<ActionResult<FlexPayCallbackResponseDto>> Callback()
         {
-            dto ??= new FlexPayCallbackDto();
+            Request.EnableBuffering();
             string payloadJson;
-            try { payloadJson = JsonSerializer.Serialize(dto); }
-            catch { payloadJson = "{}"; }
+            using (var reader = new StreamReader(Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true))
+            {
+                payloadJson = await reader.ReadToEndAsync();
+                Request.Body.Position = 0;
+            }
+
+            if (string.IsNullOrWhiteSpace(payloadJson))
+                payloadJson = "{}";
+
+            FlexPayCallbackDto dto;
+            try
+            {
+                dto = JsonSerializer.Deserialize<FlexPayCallbackDto>(payloadJson, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                }) ?? new FlexPayCallbackDto();
+            }
+            catch
+            {
+                dto = new FlexPayCallbackDto();
+            }
+
+            dto.NormalizeFromRawJson(payloadJson);
 
             var headers = string.Join("; ", Request.Headers.Select(h => $"{h.Key}={h.Value}"));
             if (headers.Length > 1000) headers = headers[..1000];
@@ -37,12 +63,18 @@ namespace Kenergie.Controllers
         }
 
         [HttpGet("verifier/{orderNumber}")]
-        [Authorize(Roles = "Super-Admin,Admin,Gerant,Financier,Caissier,Responsable Commercial,Agent Direction Commercial")]
+        [Authorize(Roles = "Super-Admin,Admin,Gerant,Financier,Caissier,Responsable Commercial,Agent Direction Commercial,Client")]
         public async Task<ActionResult<FlexPayCallbackResponseDto>> Verifier(string orderNumber)
         {
             try
             {
-                return Ok(await _paiementElectroniqueService.VerifierAsync(orderNumber));
+                return Ok(await _paiementElectroniqueService.VerifierAsync(
+                    orderNumber,
+                    _currentUserService.UserId > 0 ? _currentUserService.UserId : null));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
             }
             catch (KeyNotFoundException ex)
             {

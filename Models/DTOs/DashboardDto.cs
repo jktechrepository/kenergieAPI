@@ -1,3 +1,5 @@
+using Kenergie.Models.DTOs.Devise;
+
 namespace Kenergie.Models.DTOs
 {
     /// <summary>
@@ -44,6 +46,11 @@ namespace Kenergie.Models.DTOs
         /// Top 10 des agents collecteurs
         /// </summary>
         public List<TopAgentCollecteurDto> Top10AgentsCollecteurs { get; set; } = new();
+
+        /// <summary>
+        /// Équivalents USD indicatifs des montants synthèse (taux du jour).
+        /// </summary>
+        public DashboardSyntheseUsdDto? SyntheseUsd { get; set; }
     }
 
     /// <summary>

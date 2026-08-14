@@ -23,7 +23,7 @@ namespace Kenergie.Services.FlexPay
             string? ip,
             bool fromVerifier = false,
             string? transactionStatusFromCheck = null);
-        Task<FlexPayCallbackResponseDto> VerifierAsync(string orderNumber);
+        Task<FlexPayCallbackResponseDto> VerifierAsync(string orderNumber, int? idUtilisateur = null);
     }
 
     public class PaiementElectroniqueService : IPaiementElectroniqueService
@@ -67,7 +67,7 @@ namespace Kenergie.Services.FlexPay
                 throw new ArgumentException("Méthode invalide. Utilisez MOBILE_MONEY ou CARTE_BANCAIRE.");
 
             var marchand = await _infoPaiement.GetActiveEntityForSocieteAsync(idSociete)
-                ?? throw new InvalidOperationException("Aucune configuration FlexPay active pour cette société.");
+                ?? throw new InvalidOperationException("Paiement électronique non configuré. Veuillez contacter l'administrateur.");
 
             if (methode == MethodeFlexPay.MobileMoney && !marchand.ActifMobileMoney)
                 throw new InvalidOperationException("Mobile Money non activé pour ce marchand.");
@@ -237,6 +237,8 @@ namespace Kenergie.Services.FlexPay
             bool fromVerifier = false,
             string? transactionStatusFromCheck = null)
         {
+            payload.NormalizeFromRawJson(payloadJson);
+
             var audit = new CallbackFlexPay
             {
                 OrderNumber = payload.OrderNumber,
@@ -261,10 +263,11 @@ namespace Kenergie.Services.FlexPay
 
             var deltaSec = (DateTime.UtcNow - pending.DateCreation).TotalSeconds;
             _logger.LogInformation(
-                "FlexPay callback reçu pending={IdPending} order={Order} code={Code} deltaSec={Delta:F2} fromVerifier={FromVerifier}",
+                "FlexPay callback reçu pending={IdPending} order={Order} code={Code} providerRef={ProviderRef} deltaSec={Delta:F2} fromVerifier={FromVerifier}",
                 pending.IdPaiementElectroniqueEnAttente,
                 payload.OrderNumber,
                 payload.Code,
+                string.IsNullOrWhiteSpace(payload.ProviderReference) ? "(absent)" : payload.ProviderReference,
                 deltaSec,
                 fromVerifier);
 
@@ -293,6 +296,14 @@ namespace Kenergie.Services.FlexPay
                 audit.MessageTraitement = "Échec paiement";
                 await _context.SaveChangesAsync();
                 return new FlexPayCallbackResponseDto { Success = false, Message = "Paiement refusé" };
+            }
+
+            // Fallback : code=0 sans providerReference → check FlexPay API
+            if (!fromVerifier
+                && string.IsNullOrWhiteSpace(payload.ProviderReference)
+                && !string.IsNullOrWhiteSpace(payload.OrderNumber ?? pending.OrderNumber))
+            {
+                await TryEnrichProviderReferenceFromCheckAsync(payload, pending);
             }
 
             if (!IsPaymentConfirmed(
@@ -361,13 +372,18 @@ namespace Kenergie.Services.FlexPay
             }
         }
 
-        public async Task<FlexPayCallbackResponseDto> VerifierAsync(string orderNumber)
+        public async Task<FlexPayCallbackResponseDto> VerifierAsync(string orderNumber, int? idUtilisateur = null)
         {
             var pending = await FindPendingAsync(orderNumber, null)
                 ?? throw new KeyNotFoundException("Transaction / pending introuvable.");
 
+            if (idUtilisateur.HasValue)
+            {
+                await EnsureClientOwnsPendingAsync(idUtilisateur.Value, pending.IdClient);
+            }
+
             var marchand = await _infoPaiement.GetActiveEntityForSocieteAsync(pending.IdSociete)
-                ?? throw new InvalidOperationException("Configuration marchand introuvable.");
+                ?? throw new InvalidOperationException("Paiement électronique non configuré. Veuillez contacter l'administrateur.");
 
             var check = await _flexPayHttp.VerifierTransactionAsync(marchand.ApiToken, orderNumber);
 
@@ -408,6 +424,67 @@ namespace Kenergie.Services.FlexPay
                 "verifier",
                 fromVerifier: true,
                 transactionStatusFromCheck: check.TransactionStatus);
+        }
+
+        /// <summary>
+        /// Si le callback succès n'a pas de providerReference, interroge l'API check FlexPay.
+        /// </summary>
+        private async Task TryEnrichProviderReferenceFromCheckAsync(
+            FlexPayCallbackDto payload,
+            PaiementElectroniqueEnAttente pending)
+        {
+            try
+            {
+                var marchand = await _infoPaiement.GetActiveEntityForSocieteAsync(pending.IdSociete);
+                if (marchand == null || string.IsNullOrWhiteSpace(marchand.ApiToken))
+                    return;
+
+                var orderNumber = payload.OrderNumber ?? pending.OrderNumber;
+                if (string.IsNullOrWhiteSpace(orderNumber))
+                    return;
+
+                var check = await _flexPayHttp.VerifierTransactionAsync(marchand.ApiToken, orderNumber);
+                if (!check.IsConfirmed)
+                {
+                    _logger.LogInformation(
+                        "FlexPay enrich check non confirmé pending={Id} status={Status}",
+                        pending.IdPaiementElectroniqueEnAttente,
+                        check.TransactionStatus);
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(check.ProviderReference))
+                    payload.ProviderReference = check.ProviderReference;
+                if (string.IsNullOrWhiteSpace(payload.Amount) && !string.IsNullOrWhiteSpace(check.Amount))
+                    payload.Amount = check.Amount;
+                if (string.IsNullOrWhiteSpace(payload.Currency) && !string.IsNullOrWhiteSpace(check.Currency))
+                    payload.Currency = check.Currency;
+
+                _logger.LogInformation(
+                    "FlexPay enrich providerReference via check pending={Id} providerRef={Ref}",
+                    pending.IdPaiementElectroniqueEnAttente,
+                    payload.ProviderReference);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "FlexPay enrich check échoué pending={Id}",
+                    pending.IdPaiementElectroniqueEnAttente);
+            }
+        }
+
+        private async Task EnsureClientOwnsPendingAsync(int idUtilisateur, int idClientPending)
+        {
+            var utilisateur = await _context.Utilisateurs
+                .Include(u => u.Role)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.IdUtilisateur == idUtilisateur);
+
+            if (utilisateur?.Role?.Nom != "Client")
+                return;
+
+            if (!utilisateur.IdClient.HasValue || utilisateur.IdClient.Value != idClientPending)
+                throw new UnauthorizedAccessException("Vous ne pouvez vérifier que vos propres paiements.");
         }
 
         private bool IsPaymentConfirmed(

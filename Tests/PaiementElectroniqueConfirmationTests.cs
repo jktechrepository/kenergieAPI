@@ -73,6 +73,41 @@ namespace Kenergie.Tests
         }
 
         [Fact]
+        public async Task ProcessCallbackAsync_Code0WithSnakeCaseProviderReferenceInRawJson_CreatesPaiement()
+        {
+            await using var context = CreateInMemoryContext();
+            var pending = await SeedPendingAsync(context, MethodeFlexPay.MobileMoney);
+
+            var rawJson =
+                $"{{\"code\":\"0\",\"reference\":\"{pending.Reference}\",\"provider_reference\":\"7KI81020PHS\",\"orderNumber\":\"{pending.OrderNumber}\",\"amount\":\"{pending.Montant.ToString(System.Globalization.CultureInfo.InvariantCulture)}\",\"currency\":\"{pending.CodeDevisePaiement}\"}}";
+
+            var dto = System.Text.Json.JsonSerializer.Deserialize<FlexPayCallbackDto>(
+                rawJson,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                ?? new FlexPayCallbackDto();
+
+            var service = CreateService(context);
+            var result = await service.ProcessCallbackAsync(dto, rawJson, null, "test");
+
+            Assert.True(result.Success);
+            Assert.NotNull(result.IdPaiement);
+
+            var reloaded = await context.PaiementsElectroniquesEnAttente.FindAsync(pending.IdPaiementElectroniqueEnAttente);
+            Assert.Equal(StatutPaiementElectronique.Finalise, reloaded!.Statut);
+            Assert.Equal(1, await context.Paiements.CountAsync());
+        }
+
+        [Fact]
+        public void FlexPayCallbackDto_NormalizeFromRawJson_ReadsProviderReferenceSnakeCase()
+        {
+            var dto = new FlexPayCallbackDto { Code = "0" };
+            dto.NormalizeFromRawJson("{\"code\":\"0\",\"provider_reference\":\"OP-SNAKE\",\"orderNumber\":\"ORD1\"}");
+
+            Assert.Equal("OP-SNAKE", dto.ProviderReference);
+            Assert.Equal("ORD1", dto.OrderNumber);
+        }
+
+        [Fact]
         public async Task ProcessCallbackAsync_CodeNotZero_MarksPendingEchec()
         {
             await using var context = CreateInMemoryContext();

@@ -169,18 +169,19 @@ namespace Kenergie.Controllers
 
         [HttpGet("taux-change")]
         [Authorize(Roles = RolesLecture)]
-        public async Task<ActionResult<TauxChangeDto>> GetDernierTauxChange(
-            [FromQuery] int idSociete,
-            [FromQuery] string source,
-            [FromQuery] string cible)
+        public async Task<ActionResult<IEnumerable<TauxChangeDto>>> GetTauxChanges(
+            [FromQuery] int? idSociete = null,
+            [FromQuery] string? source = null,
+            [FromQuery] string? cible = null)
         {
-            if (!CanAccessSociete(idSociete))
+            if (idSociete.HasValue && !CanAccessSociete(idSociete.Value))
                 return Forbid();
 
-            var taux = await _deviseRepository.GetDernierTauxChangeAsync(idSociete, source, cible);
-            if (taux == null)
-                return NotFound(new { message = "Aucun taux trouvé pour cette paire." });
+            int? societeFilter = _currentUserService.IsSuperAdmin
+                ? idSociete
+                : _currentUserService.SocieteId;
 
+            var taux = await _deviseRepository.GetTauxChangesAsync(societeFilter, source, cible);
             return Ok(taux);
         }
 

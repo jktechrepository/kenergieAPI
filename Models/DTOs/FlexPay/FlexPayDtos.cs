@@ -101,14 +101,92 @@ namespace Kenergie.Models.DTOs.FlexPay
     {
         public string? Code { get; set; }
         public string? Reference { get; set; }
+
+        /// <summary>Référence opérateur (camelCase providerReference).</summary>
         public string? ProviderReference { get; set; }
+
+        /// <summary>
+        /// Alias FlexPay officiel (snake_case). Remplit <see cref="ProviderReference"/> à la désérialisation.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("provider_reference")]
+        public string? ProviderReferenceSnake
+        {
+            get => ProviderReference;
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    ProviderReference = value;
+            }
+        }
+
         public string? OrderNumber { get; set; }
         public string? Amount { get; set; }
         public string? AmountCustomer { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("amount_customer")]
+        public string? AmountCustomerSnake
+        {
+            get => AmountCustomer;
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    AmountCustomer = value;
+            }
+        }
+
         public string? Phone { get; set; }
         public string? Currency { get; set; }
         public string? CreatedAt { get; set; }
         public string? Channel { get; set; }
+
+        /// <summary>
+        /// Complète les champs manquants depuis un JSON brut FlexPay (snake_case / camelCase).
+        /// </summary>
+        public void NormalizeFromRawJson(string? payloadJson)
+        {
+            if (string.IsNullOrWhiteSpace(payloadJson))
+                return;
+
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
+                var root = doc.RootElement;
+
+                ProviderReference ??= GetJsonString(root, "providerReference", "provider_reference", "Provider_reference");
+                OrderNumber ??= GetJsonString(root, "orderNumber", "order_number", "OrderNumber");
+                Reference ??= GetJsonString(root, "reference", "Reference");
+                Code ??= GetJsonString(root, "code", "Code");
+                Amount ??= GetJsonString(root, "amount", "Amount");
+                AmountCustomer ??= GetJsonString(root, "amountCustomer", "amount_customer");
+                Currency ??= GetJsonString(root, "currency", "Currency");
+                Channel ??= GetJsonString(root, "channel", "Channel");
+                Phone ??= GetJsonString(root, "phone", "Phone");
+            }
+            catch
+            {
+                // Ignore JSON invalide — le traitement utilisera les champs déjà liés
+            }
+        }
+
+        private static string? GetJsonString(System.Text.Json.JsonElement root, params string[] names)
+        {
+            foreach (var name in names)
+            {
+                if (root.TryGetProperty(name, out var prop) && prop.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var v = prop.GetString();
+                    if (!string.IsNullOrWhiteSpace(v))
+                        return v;
+                }
+                // FlexPay envoie parfois amount en nombre
+                if (root.TryGetProperty(name, out prop) &&
+                    (prop.ValueKind == System.Text.Json.JsonValueKind.Number))
+                {
+                    return prop.ToString();
+                }
+            }
+            return null;
+        }
     }
 
     public class FlexPayCallbackResponseDto

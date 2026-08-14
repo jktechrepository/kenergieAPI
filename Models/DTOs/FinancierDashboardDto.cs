@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Kenergie.Models.DTOs.Devise;
 
 namespace Kenergie.Models.DTOs
 {
@@ -26,6 +27,31 @@ namespace Kenergie.Models.DTOs
         public decimal MoyenneTransaction { get; set; }
         public int NombreFactures { get; set; }
         public decimal ChiffreAffairesJournalier { get; set; }
+
+        /// <summary>
+        /// Total des dépenses validées du mois en cours (devise principale).
+        /// </summary>
+        public decimal MontantTotalDepensesMois { get; set; }
+
+        /// <summary>
+        /// Total des dépenses validées du jour (devise principale).
+        /// </summary>
+        public decimal MontantTotalDepensesJournalier { get; set; }
+
+        /// <summary>
+        /// Encaissements du mois moins dépenses du mois (devise principale).
+        /// </summary>
+        public decimal ResultatNetMois { get; set; }
+
+        /// <summary>
+        /// Nombre de dépenses soumises en attente de validation.
+        /// </summary>
+        public int NombreDepensesEnAttente { get; set; }
+
+        /// <summary>
+        /// Équivalents USD indicatifs des montants synthèse (taux du jour).
+        /// </summary>
+        public GlobalFinancierSyntheseUsdDto? SyntheseUsd { get; set; }
     }
 
     public class SocieteFinancierSummaryDto

@@ -17,15 +17,18 @@ namespace Kenergie.Services
         private readonly KenergieDbContext _context;
         private readonly ILogger<ResponsableCommercialDashboardService> _logger;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IRapportFinancierUsdEnrichmentService _usdEnrichment;
 
         public ResponsableCommercialDashboardService(
             KenergieDbContext context,
             ILogger<ResponsableCommercialDashboardService> logger,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            IRapportFinancierUsdEnrichmentService usdEnrichment)
         {
             _context = context;
             _logger = logger;
             _currentUserService = currentUserService;
+            _usdEnrichment = usdEnrichment;
         }
 
         /// <summary>
@@ -132,19 +135,25 @@ namespace Kenergie.Services
 
                 var montantTotalArrieres = facturesImpayees.Sum(cf => (cf.MontantDuDevisePrincipale ?? cf.MontantDu.Value));
 
-                // Calcul du TotalGeneralArriere (même formule que DashboardService.GetTotalGeneralArrieresAsync())
-                // Montant total de toutes les factures (toutes sociétés confondues)
-                var montantTotalFacturesGlobal = await _context.ClientFactures
-                    .Where(f => f.Statut == true)
+                var montantTotalFacturesSociete = await _context.ClientFactures
+                    .Where(f => f.Statut == true && clientIds.Contains(f.IdClient))
                     .SumAsync(f => (f.MontantDevisePrincipale ?? f.Montant ?? 0));
 
-                // Montant total de tous les paiements (toutes sociétés confondues)
-                var montantTotalPaiementsGlobal = await _context.Paiements
-                    .Where(p => !p.IsDeleted)
+                var montantTotalPaiementsSociete = await _context.Paiements
+                    .Where(p => !p.IsDeleted && p.IdClient.HasValue && clientIds.Contains(p.IdClient.Value))
                     .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
-                // Total général des arriérés (toutes sociétés confondues)
-                var totalGeneralArriere = montantTotalFacturesGlobal - montantTotalPaiementsGlobal;
+                var totalGeneralArriere = montantTotalFacturesSociete - montantTotalPaiementsSociete;
+
+                var debutJour = DateTime.Today;
+                var finJour = debutJour.AddDays(1).AddTicks(-1);
+                var chiffreAffairesJournalier = await _context.Paiements
+                    .Where(p => !p.IsDeleted &&
+                                p.DatePaiement >= debutJour &&
+                                p.DatePaiement <= finJour &&
+                                p.IdClient.HasValue &&
+                                clientIds.Contains(p.IdClient.Value))
+                    .SumAsync(p => (p.MontantPayeDevisePrincipale ?? p.MontantPaye));
 
                 // Taux de recouvrement global (même formule que tauxRecouvrementEstime du DashboardService)
                 var tauxRecouvrementGlobal = montantMoisPrecedent > 0
@@ -154,13 +163,18 @@ namespace Kenergie.Services
                 return new GlobalFinancierStatistiquesDto
                 {
                     ChiffreAffairesTotal = chiffreAffairesTotal,
-                    MontantTotalEncaisse = chiffreAffairesTotal, // Déjà le montant encaissé
+                    MontantTotalEncaisse = chiffreAffairesTotal,
                     MontantTotalArrieres = montantTotalArrieres,
                     TotalGeneralArriere = totalGeneralArriere,
                     MontantMoisPrecedent = montantMoisPrecedent,
                     TauxRecouvrementGlobal = tauxRecouvrementGlobal,
                     NombreTotalTransactions = nombreTotalTransactions,
-                    MoyenneTransaction = Math.Round(moyenneTransaction, 2)
+                    MoyenneTransaction = Math.Round(moyenneTransaction, 2),
+                    ChiffreAffairesJournalier = chiffreAffairesJournalier,
+                    SyntheseUsd = await _usdEnrichment.BuildGlobalFinancierSyntheseUsdAsync(new[]
+                    {
+                        (idSociete, chiffreAffairesTotal, chiffreAffairesTotal, montantTotalArrieres, totalGeneralArriere, chiffreAffairesJournalier)
+                    })
                 };
             }
             catch (Exception ex)
