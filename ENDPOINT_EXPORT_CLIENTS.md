@@ -25,8 +25,16 @@ GET /api/Client/societe/{idSociete}/export
   - Si non spécifié : exporte tous les axes de la société
   - Exemple : `?idAxe=5`
 
-- **`includeInactive`** (bool, optionnel) : Inclure les clients inactifs
+- **`isActif`** (bool, optionnel) : Filtre sur `Client.IsActif`
+  - Non fourni : **actifs seulement** (défaut), sauf si `includeInactive=true`
+  - `true` : actifs uniquement
+  - `false` : inactifs uniquement
+  - Prioritaire sur `includeInactive` s’il est fourni
+  - Exemple : `?isActif=false`
+
+- **`includeInactive`** (bool, optionnel) : Inclure actifs **et** inactifs (rétro-compatibilité)
   - Valeur par défaut : `false`
+  - Ignoré si `isActif` est fourni
   - Exemple : `?includeInactive=true`
 
 - **`searchTerm`** (string, optionnel) : Terme de recherche
@@ -36,8 +44,8 @@ GET /api/Client/societe/{idSociete}/export
 ## 📊 Filtres Appliqués
 
 ### Clients Exportés
-- ✅ `Statut == true` (clients non supprimés)
-- ✅ `IsActif == true` (sauf si `includeInactive=true`)
+- ✅ `Statut == true` (clients non soft-deleted)
+- ✅ `IsActif` selon `isActif` / `includeInactive` (défaut : actifs seulement)
 - ✅ Appartenant à la société spécifiée via les usages
 
 ### Usages Exportés
@@ -71,7 +79,7 @@ GET /api/Client/societe/{idSociete}/export
 
 ## 🎯 Exemples d'Utilisation
 
-### Export complet pour une société
+### Export complet pour une société (actifs par défaut)
 ```bash
 GET /api/Client/societe/1/export
 ```
@@ -86,14 +94,19 @@ GET /api/Client/societe/1/export?idAxe=5
 GET /api/Client/societe/1/export?searchTerm=dupont
 ```
 
-### Export incluant les clients inactifs
+### Export des clients inactifs seulement
+```bash
+GET /api/Client/societe/1/export?isActif=false
+```
+
+### Export incluant actifs et inactifs
 ```bash
 GET /api/Client/societe/1/export?includeInactive=true
 ```
 
 ### Export combiné
 ```bash
-GET /api/Client/societe/1/export?idAxe=5&searchTerm=jean&includeInactive=false
+GET /api/Client/societe/1/export?idAxe=5&searchTerm=jean&isActif=true
 ```
 
 ## 📄 Format de Réponse

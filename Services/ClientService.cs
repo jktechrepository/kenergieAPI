@@ -571,8 +571,15 @@ namespace Kenergie.Services
             var oldEmailClient = existing.EmailClient;
             var oldGenreClient = existing.GenreClient;
             var oldAdresseClient = existing.AdresseClient;
+            var wasInactive = !existing.IsActif;
+            var previousDateReactivation = existing.DateDerniereReactivation;
 
             _context.Entry(existing).CurrentValues.SetValues(client);
+            // Ne pas écraser la date de réactivation via SetValues (DTO/controllers ne la fournissent pas)
+            existing.DateDerniereReactivation = previousDateReactivation;
+            if (wasInactive && client.IsActif)
+                existing.DateDerniereReactivation = DateTime.Now;
+
             await _context.SaveChangesAsync();
 
             // Note: Les usages sont maintenant gérés via ClientUsage, pas via IdCategorieClient
@@ -686,6 +693,7 @@ namespace Kenergie.Services
                 var oldEmailClient = existing.EmailClient;
                 var oldGenreClient = existing.GenreClient;
                 var oldAdresseClient = existing.AdresseClient;
+                var wasInactive = !existing.IsActif;
 
                 // 3. Mettre à jour les champs du client (seulement ceux fournis)
                 if (client.NomClient != null) existing.NomClient = client.NomClient;
@@ -698,6 +706,8 @@ namespace Kenergie.Services
                 // Statut et IsActif sont des bool, pas bool?, donc on les met à jour directement
                 existing.Statut = client.Statut;
                 existing.IsActif = client.IsActif;
+                if (wasInactive && client.IsActif)
+                    existing.DateDerniereReactivation = DateTime.Now;
 
                 // 4. Mettre à jour les usages si fournis
                 if (usages != null && usages.Count > 0)
@@ -925,7 +935,11 @@ namespace Kenergie.Services
             if (client == null)
                 return false;
 
+            var wasInactive = !client.IsActif;
             client.IsActif = !client.IsActif;
+            if (wasInactive && client.IsActif)
+                client.DateDerniereReactivation = DateTime.Now;
+
             await _context.SaveChangesAsync();
             return true;
         }

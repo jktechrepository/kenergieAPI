@@ -106,6 +106,11 @@ namespace Kenergie.Models.DTOs
         public decimal VariationCAMoisPrecedent { get; set; }
 
         /// <summary>
+        /// Total des factures validées du mois précédent (devise principale).
+        /// </summary>
+        public decimal MontantTotalFacturesMoisPrecedent { get; set; }
+
+        /// <summary>
         /// Nombre total de factures du mois
         /// </summary>
         public int TotalFacturesMois { get; set; }

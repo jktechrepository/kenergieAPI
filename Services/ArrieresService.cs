@@ -85,6 +85,7 @@ namespace Kenergie.Services
             return new FactureImpayeeDto
             {
                 IdFacture = clientFacture.IdFacture ?? 0,
+                IdClientFacture = clientFacture.IdClientFacture,
                 NumeroFacture = facture?.NumeroFacture ?? (clientFacture.EstArrierePreExistant ? "ARRIERE-PRE-EXISTANT" : null),
                 DateEmission = clientFacture.DateEmission ?? facture?.DateEmission,
                 MoisEmission = facture?.MoisEmission ?? (clientFacture.Mois != null && int.TryParse(clientFacture.Mois, out var mois) ? mois : 0),

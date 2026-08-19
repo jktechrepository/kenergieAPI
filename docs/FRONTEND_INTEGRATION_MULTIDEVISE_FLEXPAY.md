@@ -41,7 +41,14 @@ Guide dashboards / stats USD : [`FRONTEND_INTEGRATION_RAPPORT_USD.md`](./FRONTEN
 
 ### 1.3 Devises FlexPay
 
-FlexPay n’accepte que **CDF** et **USD**. Si `ClientFacture.codeDevisePrix` hors de ces codes → masquer/désactiver le paiement électronique et proposer CASH (ou convertir côté métier plus tard).
+FlexPay n’accepte que **CDF** et **USD** comme **devise de paiement**. La facture peut être dans une autre devise si Kenergie dispose d’un taux interne pour convertir vers CDF/USD au moment de l’initiation.
+
+Règles métier cross-devise :
+
+- La **facture fait foi** : `montant` envoyé à l’API reste un montant exprimé dans la devise de la facture.
+- `codeDevisePaiement` peut être différent de `ClientFacture.codeDevisePrix`.
+- Kenergie fige le taux interne à l’initiation, calcule le montant à débiter côté wallet, puis valide le callback contre ce snapshot figé.
+- CASH reste strict : `codeDevisePaiement` doit toujours correspondre à la devise de la facture.
 
 ---
 
@@ -51,7 +58,7 @@ FlexPay n’accepte que **CDF** et **USD**. Si `ClientFacture.codeDevisePrix` ho
 
 | Action | Méthode | Route | Rôles typiques |
 |--------|---------|-------|----------------|
-| Lister devises actives | GET | `/api/Devise/devises` | Caissier, Financier, Admin, Gérant, Super-Admin… |
+| Lister devises actives | GET | `/api/Devise/devises` | Caissier, Financier, Admin, Gérant, Super-Admin…, **Client** (lecture, société du client) |
 | Créer devise | POST | `/api/Devise/devises` | Admin, Gérant, Super-Admin |
 | Modifier devise | PUT | `/api/Devise/devises/{id}` | Admin, Gérant, Super-Admin |
 | Devise principale | PUT | `/api/Devise/societe/{idSociete}/devise-principale/{code}` | Admin, Gérant, Super-Admin |
@@ -73,9 +80,9 @@ FlexPay n’accepte que **CDF** et **USD**. Si `ClientFacture.codeDevisePrix` ho
 | Action | Méthode | Route | Rôles |
 |--------|---------|-------|-------|
 | Config marchand CRUD | `/api/InfoPaiementSociete` | Admin, Financier, Super-Admin |
-| Initier paiement | POST | `/api/Paiement/electronique` | Caissier, Financier, Admin… |
-| Statut pending | GET | `/api/Paiement/electronique/{idPending}` | idem |
-| Vérifier (secours) | GET | `/api/FlexPay/verifier/{orderNumber}` | idem |
+| Initier paiement | POST | `/api/Paiement/electronique` | Caissier, Financier, Admin…, **Client** (`Paiement.Create`, ses factures) |
+| Statut pending | GET | `/api/Paiement/electronique/{idPending}` | idem + **Client** (uniquement ses propres pending) |
+| Vérifier (secours) | GET | `/api/FlexPay/verifier/{orderNumber}` | idem + **Client** (ses paiements) |
 
 Le callback `POST /api/FlexPay/callback` est **serveur ↔ FlexPay** : aucune intégration côté app.
 
@@ -313,15 +320,12 @@ async function payerCash() {
 }
 
 async function payerMobileMoney(telephone: string) {
-  if (!['CDF', 'USD'].includes(facture.codeDevisePrix)) {
-    throw new Error('Paiement électronique indisponible pour cette devise')
-  }
   const { data } = await flexPayApi.initier({
     idClientFacture: facture.idClientFacture,
     methode: 'MOBILE_MONEY',
     telephone, // ex. 2439…
-    codeDevisePaiement: facture.codeDevisePrix,
-    montant: montantSaisi, // optionnel
+    codeDevisePaiement: deviseWalletChoisie, // "CDF" ou "USD"
+    montant: montantSaisi, // optionnel, toujours exprimé dans la devise de la facture
   })
   if (data.methode === 'CARTE_BANCAIRE' && data.paymentUrl) {
     window.open(data.paymentUrl, '_blank')
@@ -538,7 +542,7 @@ Permissions / rôles : masquer Admin Devises / Marchand selon le JWT (`Admin`, `
 
 | HTTP | Cas fréquent | Message UI suggéré |
 |------|--------------|--------------------|
-| 400 | Devise mismatch paiement / facture | « Le paiement doit être en {codeDeviseFacture} » |
+| 400 | Devise de paiement non supportée / taux introuvable | « Paiement électronique indisponible pour cette combinaison de devises » |
 | 400 | FlexPay sur `/api/Paiement` | « Utilisez le paiement électronique » |
 | 400 | Hold encore actif | « Un paiement est déjà en cours pour cette facture » |
 | 400 | FlexPay disabled / marchand | « Paiement électronique indisponible » |
@@ -552,7 +556,7 @@ Toujours afficher `response.data.message` quand présent.
 
 **Ne pas confondre** : `Authorization: Bearer {jwt}` de l’app (session utilisateur Kenergie) ≠ `apiToken` marchand FlexPay (credentials `InfoPaiementSociete`).
 
-**Écart hors tolérance** : FlexPay a souvent `code=0` (paiement OK) mais Kenergie refuse de finaliser si `|amount - pending.Montant| > MontantTolerance`. La comparaison utilise le champ marchand `amount` (pas `amountCustomer`, qui peut inclure des frais). Le téléphone MM n’entre pas dans ce contrôle.
+**Écart hors tolérance** : FlexPay a souvent `code=0` (paiement OK) mais Kenergie refuse de finaliser si `|amount - pending.Montant| > MontantTolerance`. La comparaison utilise le champ marchand `amount` (pas `amountCustomer`, qui peut inclure des frais). En cross-devise, `pending.Montant` correspond au **montant débité attendu dans la devise payeur**, calculé au moment de l’initiation.
 
 ---
 
@@ -575,7 +579,8 @@ Toujours afficher `response.data.message` quand présent.
 - [ ] Polling s’arrête sur Finalise / Echec / Expire
 - [ ] Bouton « Vérifier » appelle `/verifier/{orderNumber}`
 - [ ] CASH avec méthode Mobile Money → erreur claire
-- [ ] Facture hors CDF/USD → FlexPay désactivé dans l’UI
+- [ ] Facture dans une devise non CDF/USD + taux interne disponible → init FlexPay possible en CDF/USD
+- [ ] Facture hors CDF/USD sans taux interne → erreur claire côté UI/API
 
 ---
 

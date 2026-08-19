@@ -25,7 +25,8 @@ namespace Kenergie.Tests
                     NomClient = "Client inactif",
                     AdresseClient = "Adresse A",
                     Statut = true,
-                    IsActif = false
+                    IsActif = false,
+                    DateCreation = new DateTime(2026, 1, 1)
                 },
                 new Client
                 {
@@ -33,7 +34,8 @@ namespace Kenergie.Tests
                     NomClient = "Client actif",
                     AdresseClient = "Adresse B",
                     Statut = true,
-                    IsActif = true
+                    IsActif = true,
+                    DateCreation = new DateTime(2026, 1, 1)
                 });
 
             context.ClientUsages.AddRange(
@@ -72,7 +74,8 @@ namespace Kenergie.Tests
                 NomClient = "Client actif",
                 AdresseClient = "Adresse",
                 Statut = true,
-                IsActif = true
+                IsActif = true,
+                DateCreation = new DateTime(2026, 1, 1)
             });
 
             context.ClientUsages.Add(new ClientUsage
@@ -114,7 +117,8 @@ namespace Kenergie.Tests
                 NomClient = "Client inactif",
                 AdresseClient = "Adresse",
                 Statut = true,
-                IsActif = false
+                IsActif = false,
+                DateCreation = new DateTime(2026, 1, 1)
             });
 
             context.ClientUsages.Add(new ClientUsage
@@ -153,7 +157,8 @@ namespace Kenergie.Tests
                     NomClient = "Inactif",
                     AdresseClient = "A",
                     Statut = true,
-                    IsActif = false
+                    IsActif = false,
+                    DateCreation = new DateTime(2026, 1, 1)
                 },
                 new Client
                 {
@@ -161,7 +166,8 @@ namespace Kenergie.Tests
                     NomClient = "Actif",
                     AdresseClient = "B",
                     Statut = true,
-                    IsActif = true
+                    IsActif = true,
+                    DateCreation = new DateTime(2026, 1, 1)
                 });
 
             context.ClientUsages.AddRange(
@@ -188,7 +194,8 @@ namespace Kenergie.Tests
                     NomClient = "Inactif",
                     AdresseClient = "A",
                     Statut = true,
-                    IsActif = false
+                    IsActif = false,
+                    DateCreation = new DateTime(2026, 1, 1)
                 },
                 new Client
                 {
@@ -196,7 +203,8 @@ namespace Kenergie.Tests
                     NomClient = "Actif sans user",
                     AdresseClient = "B",
                     Statut = true,
-                    IsActif = true
+                    IsActif = true,
+                    DateCreation = new DateTime(2026, 1, 1)
                 });
 
             context.ClientUsages.AddRange(

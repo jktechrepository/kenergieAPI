@@ -45,6 +45,8 @@ namespace Kenergie.Models.DTOs.Devise
         public EquivalentUsdDto? MontantTotalArrieres { get; set; }
         public EquivalentUsdDto? TotalGeneralArriere { get; set; }
         public EquivalentUsdDto? ChiffreAffairesJournalier { get; set; }
+        public EquivalentUsdDto? MontantTotalDepensesMois { get; set; }
+        public EquivalentUsdDto? MontantTotalFacturesMoisPrecedent { get; set; }
     }
 
     public class GlobalStatistiquesSyntheseUsdDto
@@ -58,11 +60,15 @@ namespace Kenergie.Models.DTOs.Devise
     {
         public EquivalentUsdDto? ChiffreAffairesMois { get; set; }
         public EquivalentUsdDto? MontantTotalArrieres { get; set; }
+        public EquivalentUsdDto? MontantDepensesMois { get; set; }
+        public EquivalentUsdDto? MontantTotalFacturesMoisPrecedent { get; set; }
     }
 
     public class DashboardSyntheseUsdDto
     {
         public EquivalentUsdDto? PaiementsDuMois { get; set; }
         public EquivalentUsdDto? TotalGeneralArriere { get; set; }
+        public EquivalentUsdDto? MontantTotalFacturesMoisPrecedent { get; set; }
+        public EquivalentUsdDto? MontantTotalDepensesMois { get; set; }
     }
 }

@@ -83,15 +83,23 @@ namespace Kenergie.Services.Notifications
 
             if (message.InApp?.IsEnabled == true && utilisateur != null)
             {
-                inAppNotificationId = await PersistInAppNotificationAsync(context, message.InApp, utilisateur.IdUtilisateur, cancellationToken);
+                var persisted = await PersistInAppNotificationAsync(context, message.InApp, utilisateur.IdUtilisateur, cancellationToken);
+                inAppNotificationId = persisted?.IdNotification;
 
                 try
                 {
-                    await _signalRService.SendCustomNotificationAsync(
-                        utilisateur.IdUtilisateur,
-                        message.InApp.Title,
-                        message.InApp.Content,
-                        message.InApp.Type ?? kind);
+                    if (persisted != null)
+                    {
+                        await _signalRService.SendNotificationToUserAsync(utilisateur.IdUtilisateur, persisted);
+                    }
+                    else
+                    {
+                        await _signalRService.SendCustomNotificationAsync(
+                            utilisateur.IdUtilisateur,
+                            message.InApp.Title,
+                            message.InApp.Content,
+                            message.InApp.Type ?? kind);
+                    }
 
                     _logger.LogInformation(
                         "✅ Notification SignalR {Kind} envoyée à l'utilisateur {UtilisateurId}",
@@ -227,7 +235,7 @@ namespace Kenergie.Services.Notifications
             };
         }
 
-        private async Task<int?> PersistInAppNotificationAsync(NotificationContext context, InAppNotificationMessage inApp, int idDestinataire, CancellationToken cancellationToken)
+        private async Task<Notification?> PersistInAppNotificationAsync(NotificationContext context, InAppNotificationMessage inApp, int idDestinataire, CancellationToken cancellationToken)
         {
             try
             {
@@ -248,8 +256,7 @@ namespace Kenergie.Services.Notifications
                     PayloadJson = inApp.Metadata.Count > 0 ? JsonSerializer.Serialize(inApp.Metadata) : null
                 };
 
-                var created = await _notificationRepository.CreateAsync(notification);
-                return created.IdNotification;
+                return await _notificationRepository.CreateAsync(notification);
             }
             catch (Exception ex)
             {

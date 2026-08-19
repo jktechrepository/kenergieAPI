@@ -16,6 +16,16 @@ namespace Kenergie.Models.DTOs
         public int SocieteId { get; set; }
 
         /// <summary>
+        /// Année de la période diffusée (MoisEmission / AnneesEmission)
+        /// </summary>
+        public int Annee { get; set; }
+
+        /// <summary>
+        /// Mois de la période diffusée (1–12)
+        /// </summary>
+        public int Mois { get; set; }
+
+        /// <summary>
         /// Nombre total de factures en attente de diffusion trouvées
         /// </summary>
         public int TotalFactures { get; set; }

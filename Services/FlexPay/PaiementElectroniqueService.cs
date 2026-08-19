@@ -16,6 +16,14 @@ namespace Kenergie.Services.FlexPay
     {
         Task<PaiementElectroniquePendingDto> InitierAsync(InitierPaiementElectroniqueDto dto, int idSociete, int? idUtilisateur);
         Task<PaiementElectroniquePendingDto?> GetPendingAsync(int idPending, int? idSocieteFilter);
+        /// <summary>
+        /// Statut pending pour l'appelant : staff filtré par société ; Client sans filtre société mais ownership IdClient.
+        /// </summary>
+        Task<PaiementElectroniquePendingDto?> GetPendingForCallerAsync(
+            int idPending,
+            int? idSocieteFilter,
+            int? idUtilisateur,
+            bool isClientRole);
         Task<FlexPayCallbackResponseDto> ProcessCallbackAsync(
             FlexPayCallbackDto payload,
             string? payloadJson,
@@ -29,6 +37,7 @@ namespace Kenergie.Services.FlexPay
     public class PaiementElectroniqueService : IPaiementElectroniqueService
     {
         private readonly KenergieDbContext _context;
+        private readonly IDeviseConversionService _deviseConversionService;
         private readonly IFlexPayHttpService _flexPayHttp;
         private readonly IInfoPaiementSocieteService _infoPaiement;
         private readonly IPaiementRepository _paiementRepository;
@@ -38,6 +47,7 @@ namespace Kenergie.Services.FlexPay
 
         public PaiementElectroniqueService(
             KenergieDbContext context,
+            IDeviseConversionService deviseConversionService,
             IFlexPayHttpService flexPayHttp,
             IInfoPaiementSocieteService infoPaiement,
             IPaiementRepository paiementRepository,
@@ -46,6 +56,7 @@ namespace Kenergie.Services.FlexPay
             ILogger<PaiementElectroniqueService> logger)
         {
             _context = context;
+            _deviseConversionService = deviseConversionService;
             _flexPayHttp = flexPayHttp;
             _infoPaiement = infoPaiement;
             _paiementRepository = paiementRepository;
@@ -85,22 +96,19 @@ namespace Kenergie.Services.FlexPay
 
             await EnsureClientSelfPaymentAsync(idUtilisateur, idClient, dto.IdClient);
 
-            var montant = dto.Montant ?? montantDu;
-            if (montant <= 0)
+            var montantFacture = dto.Montant ?? montantDu;
+            if (montantFacture <= 0)
                 throw new ArgumentException("Le montant doit être supérieur à 0.");
-            if (montant > montantDu + 0.001m)
-                throw new ArgumentException($"Le montant ({montant}) dépasse le montant dû ({montantDu}).");
+            if (montantFacture > montantDu + 0.001m)
+                throw new ArgumentException($"Le montant ({montantFacture}) dépasse le montant dû ({montantDu}).");
 
-            var codeDevise = DeviseConversionService.NormalizeCode(
+            var codeDevisePaiement = DeviseConversionService.NormalizeCode(
                 !string.IsNullOrWhiteSpace(dto.CodeDevisePaiement)
                     ? dto.CodeDevisePaiement!
                     : codeDeviseFacture);
 
-            if (codeDevise != "CDF" && codeDevise != "USD")
-                throw new ArgumentException("FlexPay n'accepte que CDF ou USD. La facture doit être en CDF/USD.");
-
-            if (!string.Equals(codeDevise, DeviseConversionService.NormalizeCode(codeDeviseFacture), StringComparison.OrdinalIgnoreCase))
-                throw new ArgumentException($"La devise de paiement ({codeDevise}) doit correspondre à la devise de la facture ({codeDeviseFacture}).");
+            if (codeDevisePaiement != "CDF" && codeDevisePaiement != "USD")
+                throw new ArgumentException("FlexPay n'accepte que CDF ou USD comme devise de paiement.");
 
             string? phone = null;
             if (methode == MethodeFlexPay.MobileMoney)
@@ -119,6 +127,13 @@ namespace Kenergie.Services.FlexPay
             var holdMinutes = Math.Max(1, _options.HoldMinutes);
             var holdExpire = DateTime.UtcNow.AddMinutes(holdMinutes);
             var reference = $"KE-{Guid.NewGuid():N}"[..19];
+            var snapshotDate = DateTime.UtcNow;
+            var snapshot = await BuildConversionSnapshotAsync(
+                idSociete,
+                codeDeviseFacture,
+                codeDevisePaiement,
+                montantFacture,
+                snapshotDate);
 
             var pending = new PaiementElectroniqueEnAttente
             {
@@ -127,8 +142,14 @@ namespace Kenergie.Services.FlexPay
                 IdClientFacture = clientFacture.IdClientFacture > 0 ? clientFacture.IdClientFacture : null,
                 IdFacture = idFacture,
                 IdUtilisateur = idUtilisateur,
-                Montant = Math.Round(montant, 2, MidpointRounding.AwayFromZero),
-                CodeDevisePaiement = codeDevise,
+                Montant = snapshot.MontantPaiement,
+                MontantFacture = montantFacture,
+                CodeDevisePaiement = codeDevisePaiement,
+                CodeDeviseFacture = codeDeviseFacture,
+                CodeDevisePrincipale = snapshot.CodeDevisePrincipale,
+                TauxFactureVersPaiement = snapshot.TauxFactureVersPaiement,
+                TauxFactureVersDevisePrincipale = snapshot.TauxFactureVersDevisePrincipale,
+                MontantFactureDevisePrincipale = snapshot.MontantFactureDevisePrincipale,
                 Methode = methode,
                 Telephone = phone,
                 Reference = reference,
@@ -168,7 +189,7 @@ namespace Kenergie.Services.FlexPay
                     reference,
                     phone!,
                     pending.Montant,
-                    codeDevise,
+                    codeDevisePaiement,
                     callbackUrl);
             }
             else
@@ -179,7 +200,7 @@ namespace Kenergie.Services.FlexPay
                     marchand.CodeMarchand,
                     reference,
                     pending.Montant,
-                    codeDevise,
+                    codeDevisePaiement,
                     $"Paiement facture client {idClient}",
                     callbackUrl,
                     FlexPayUrlHelper.ResolveApproveUrl(callbackUrl),
@@ -205,7 +226,7 @@ namespace Kenergie.Services.FlexPay
                 OrderNumber = initResult.OrderNumber,
                 TypeFlexPay = typeFlexPay,
                 Montant = pending.Montant,
-                CodeDevise = codeDevise,
+                CodeDevise = codeDevisePaiement,
                 NombreCallbacks = 0,
                 DateCreation = DateTime.UtcNow
             });
@@ -227,6 +248,41 @@ namespace Kenergie.Services.FlexPay
 
             var pending = await q.FirstOrDefaultAsync();
             return pending == null ? null : MapPending(pending, !string.IsNullOrWhiteSpace(pending.OrderNumber), null);
+        }
+
+        public async Task<PaiementElectroniquePendingDto?> GetPendingForCallerAsync(
+            int idPending,
+            int? idSocieteFilter,
+            int? idUtilisateur,
+            bool isClientRole)
+        {
+            // Client : pas de filtre société (JWT SocieteId souvent 0) — ownership par IdClient ensuite.
+            var filter = isClientRole ? null : idSocieteFilter;
+            var q = _context.PaiementsElectroniquesEnAttente.AsNoTracking()
+                .Where(p => p.IdPaiementElectroniqueEnAttente == idPending);
+            if (filter.HasValue)
+                q = q.Where(p => p.IdSociete == filter.Value);
+
+            var pending = await q.FirstOrDefaultAsync();
+            if (pending == null)
+                return null;
+
+            if (isClientRole)
+            {
+                if (!idUtilisateur.HasValue || idUtilisateur.Value <= 0)
+                    throw new UnauthorizedAccessException("Utilisateur non authentifié.");
+
+                var idClientUtilisateur = await _context.Utilisateurs
+                    .AsNoTracking()
+                    .Where(u => u.IdUtilisateur == idUtilisateur.Value)
+                    .Select(u => u.IdClient)
+                    .FirstOrDefaultAsync();
+
+                if (!idClientUtilisateur.HasValue || idClientUtilisateur.Value != pending.IdClient)
+                    throw new UnauthorizedAccessException("Vous ne pouvez consulter que vos propres paiements.");
+            }
+
+            return MapPending(pending, !string.IsNullOrWhiteSpace(pending.OrderNumber), null);
         }
 
         public async Task<FlexPayCallbackResponseDto> ProcessCallbackAsync(
@@ -558,7 +614,8 @@ namespace Kenergie.Services.FlexPay
                 IdFacture = idFacture,
                 IdClientFacture = idClientFacture,
                 IdClient = pending.IdClient,
-                MontantPaye = pending.Montant,
+                MontantPaye = pending.MontantFacture,
+                MontantPayeDevisePaiement = pending.Montant,
                 DatePaiement = DateTime.Now,
                 MethodePaiement = MethodePaiementHelper.ToDisplayMethode(pending.Methode),
                 ReferenceTransaction = orderNumber ?? pending.OrderNumber ?? pending.Reference,
@@ -566,7 +623,12 @@ namespace Kenergie.Services.FlexPay
                 Statut = "Validé",
                 IdUtilisateur = pending.IdUtilisateur,
                 EstPaiementArriere = estArriere,
-                CodeDevisePaiement = pending.CodeDevisePaiement
+                CodeDevisePaiement = pending.CodeDevisePaiement,
+                CodeDeviseFacture = pending.CodeDeviseFacture,
+                CodeDevisePrincipale = pending.CodeDevisePrincipale,
+                TauxFactureVersDevisePaiement = pending.TauxFactureVersPaiement,
+                TauxVersDevisePrincipale = pending.TauxFactureVersDevisePrincipale,
+                MontantPayeDevisePrincipale = pending.MontantFactureDevisePrincipale
             };
 
             return await _paiementRepository.CreateAsync(paiement);
@@ -783,5 +845,50 @@ namespace Kenergie.Services.FlexPay
             DateFinalisation = p.DateFinalisation,
             Message = message ?? p.MessageErreur
         };
+
+        private async Task<PendingConversionSnapshot> BuildConversionSnapshotAsync(
+            int idSociete,
+            string codeDeviseFacture,
+            string codeDevisePaiement,
+            decimal montantFacture,
+            DateTime dateReference)
+        {
+            var principale = await _deviseConversionService.GetCodeDevisePrincipaleAsync(idSociete);
+
+            var factureVersPaiement = await _deviseConversionService.ConvertirAsync(
+                idSociete,
+                codeDeviseFacture,
+                codeDevisePaiement,
+                montantFacture,
+                dateReference);
+
+            var factureVersPrincipale = await _deviseConversionService.ConvertirAsync(
+                idSociete,
+                codeDeviseFacture,
+                principale,
+                montantFacture,
+                dateReference);
+
+            return new PendingConversionSnapshot
+            {
+                CodeDevisePrincipale = principale,
+                MontantPaiement = Math.Round(
+                    factureVersPaiement.MontantConverti,
+                    2,
+                    MidpointRounding.AwayFromZero),
+                TauxFactureVersPaiement = factureVersPaiement.Taux,
+                TauxFactureVersDevisePrincipale = factureVersPrincipale.Taux,
+                MontantFactureDevisePrincipale = factureVersPrincipale.MontantConverti
+            };
+        }
+
+        private sealed class PendingConversionSnapshot
+        {
+            public string CodeDevisePrincipale { get; set; } = "CDF";
+            public decimal MontantPaiement { get; set; }
+            public decimal TauxFactureVersPaiement { get; set; }
+            public decimal TauxFactureVersDevisePrincipale { get; set; }
+            public decimal MontantFactureDevisePrincipale { get; set; }
+        }
     }
 }

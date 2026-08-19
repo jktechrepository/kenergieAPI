@@ -64,6 +64,12 @@ namespace Kenergie.Models
         public bool IsActif { get; set; } = true;
 
         /// <summary>
+        /// Date de dernière réactivation (null si jamais désactivé puis réactivé).
+        /// Sert de date effective de démarrage pour l'éligibilité facture.
+        /// </summary>
+        public DateTime? DateDerniereReactivation { get; set; }
+
+        /// <summary>
         /// Date de création du client
         /// </summary>
         public DateTime DateCreation { get; set; } = DateTime.Now;

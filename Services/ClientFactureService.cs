@@ -76,6 +76,7 @@ namespace Kenergie.Services
 
             if (FactureBillingEligibilityHelper.IsClientEligibleForBillingPeriod(
                     client.DateCreation,
+                    client.DateDerniereReactivation,
                     clientFacture.Mois,
                     clientFacture.Annees.Value))
                 return;
@@ -83,6 +84,7 @@ namespace Kenergie.Services
             throw new InvalidOperationException(
                 FactureBillingEligibilityHelper.BuildIneligibilityMessage(
                     client.DateCreation,
+                    client.DateDerniereReactivation,
                     clientFacture.Mois,
                     clientFacture.Annees.Value));
         }

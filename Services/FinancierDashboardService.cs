@@ -78,6 +78,7 @@ namespace Kenergie.Services
                 var nombreFacturesTotal = 0;
                 var caJournalierTotal = 0m;
                 var syntheseItems = new List<(int IdSociete, decimal ChiffreAffaires, decimal MontantEncaisse, decimal MontantArrieres, decimal TotalGeneralArriere, decimal ChiffreAffairesJournalier)>();
+                var facturesMoisPrecedentItems = new List<(int IdSociete, decimal Montant)>();
 
                 foreach (var societe in toutesSocietes)
                 {
@@ -86,8 +87,8 @@ namespace Kenergie.Services
                     montantEncaisse += societeStats.MontantEncaisse;
                     montantArrieres += societeStats.MontantArrieres;
                     nombreTransactions += societeStats.NombreTransactions;
-                    montantMoisPrecedentTotal += societeStats.Item6;
-                    nombreFacturesTotal += societeStats.Item7;
+                    montantMoisPrecedentTotal += societeStats.MontantMoisPrecedent;
+                    nombreFacturesTotal += societeStats.NombreFactures;
 
                     var caJournalierSociete = await GetChiffreAffairesJournalierSocieteAsync(societe.IdSociete);
                     caJournalierTotal += caJournalierSociete;
@@ -99,6 +100,7 @@ namespace Kenergie.Services
                         societeStats.MontantArrieres,
                         societeStats.MontantArrieres,
                         caJournalierSociete));
+                    facturesMoisPrecedentItems.Add((societe.IdSociete, societeStats.MontantMoisPrecedent));
                 }
 
                 // Calcul du TotalGeneralArriere (même formule que DashboardService)
@@ -120,12 +122,23 @@ namespace Kenergie.Services
                 var debutMois = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
                 var finMois = debutMois.AddMonths(1);
 
-                var montantDepensesMois = await _context.Depenses
+                var depensesParSociete = await _context.Depenses
                     .Where(d => !d.IsDeleted
                         && d.Statut == DepenseStatuts.Validee
                         && d.DateDepense >= debutMois
                         && d.DateDepense < finMois)
-                    .SumAsync(d => d.MontantDevisePrincipale ?? d.Montant);
+                    .GroupBy(d => d.IdSociete)
+                    .Select(g => new
+                    {
+                        IdSociete = g.Key,
+                        Montant = g.Sum(d => d.MontantDevisePrincipale ?? d.Montant)
+                    })
+                    .ToListAsync();
+
+                var montantDepensesMois = depensesParSociete.Sum(x => x.Montant);
+                var depensesMoisItems = depensesParSociete
+                    .Select(x => (x.IdSociete, x.Montant))
+                    .ToList();
 
                 var montantDepensesJournalier = await _context.Depenses
                     .Where(d => !d.IsDeleted
@@ -152,7 +165,10 @@ namespace Kenergie.Services
                     MontantTotalDepensesJournalier = montantDepensesJournalier,
                     ResultatNetMois = montantEncaisse - montantDepensesMois,
                     NombreDepensesEnAttente = nombreDepensesEnAttente,
-                    SyntheseUsd = await _usdEnrichment.BuildGlobalFinancierSyntheseUsdAsync(syntheseItems)
+                    SyntheseUsd = await _usdEnrichment.BuildGlobalFinancierSyntheseUsdAsync(
+                        syntheseItems,
+                        depensesMoisItems,
+                        facturesMoisPrecedentItems)
                 };
             }
             catch (Exception ex)

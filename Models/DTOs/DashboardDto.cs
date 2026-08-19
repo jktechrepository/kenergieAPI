@@ -28,6 +28,11 @@ namespace Kenergie.Models.DTOs
         public decimal TotalGeneralArriere { get; set; }
 
         /// <summary>
+        /// Dépenses validées du mois calendaire en cours (devise principale).
+        /// </summary>
+        public decimal MontantTotalDepensesMois { get; set; }
+
+        /// <summary>
         /// Collecte du mois avec variations
         /// </summary>
         public CollecteMoisDto CollecteMois { get; set; } = new();

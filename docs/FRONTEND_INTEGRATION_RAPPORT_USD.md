@@ -25,7 +25,7 @@ Aucun nouvel endpoint : le bloc `syntheseUsd` est déjà présent sur les répon
 | `syntheseUsd` est **indicatif** (taux du jour, pas un snapshot de facture) | Libellé du type « ≈ … USD » |
 | Le front **ne convertit pas** | Ne pas appeler `GET /api/Devise/preview-conversion` pour les totaux |
 | Afficher l’USD seulement si `conversionUsdDisponible === true` | Sinon masquer ou « — » |
-| Caissier, dépenses, évolutions, répartitions | **Pas** de `syntheseUsd` |
+| Caissier, évolutions, répartitions, listes dépenses | **Pas** de `syntheseUsd` |
 
 Les montants d’origine (factures, paiements) gardent leur snapshot `montantDevisePrincipale` : ne pas les remplacer par cet équivalent USD.
 
@@ -89,10 +89,10 @@ Sur le dashboard **complet**, `syntheseUsd` est imbriqué. Sur les sous-routes q
 |---|---|---|
 | `GET /api/Statistiques/generales/{idSociete}` | `syntheseUsd` | `totalArrieres`, `totalPaiements` |
 | `GET /api/Statistiques/financieres/{idSociete}` | `syntheseUsd` | `chiffreAffaires`, `montantArrieres`, `montantPaye`, `montantDu` |
-| `GET /api/Dashboard/{idSociete}` | `syntheseUsd` | `paiementsDuMois`, `totalGeneralArriere` |
-| `GET /api/FinancierDashboard` | `globalStatistiques.syntheseUsd` | `chiffreAffairesTotal`, `montantTotalEncaisse`, `montantTotalArrieres`, `totalGeneralArriere`, `chiffreAffairesJournalier` |
+| `GET /api/Dashboard/{idSociete}` | `syntheseUsd` | `paiementsDuMois`, `totalGeneralArriere`, `montantTotalFacturesMoisPrecedent`, `montantTotalDepensesMois` |
+| `GET /api/FinancierDashboard` | `globalStatistiques.syntheseUsd` | `chiffreAffairesTotal`, `montantTotalEncaisse`, `montantTotalArrieres`, `totalGeneralArriere`, `chiffreAffairesJournalier`, `montantTotalDepensesMois`, `montantTotalFacturesMoisPrecedent` |
 | `GET /api/FinancierDashboard/statistiques-globales` | `syntheseUsd` | mêmes champs Financier |
-| `GET /api/GerantDashboard` | `societeStatistiques.syntheseUsd` | `chiffreAffairesMois`, `montantTotalArrieres` |
+| `GET /api/GerantDashboard` | `societeStatistiques.syntheseUsd` | `chiffreAffairesMois`, `montantTotalArrieres`, `montantDepensesMois`, `montantTotalFacturesMoisPrecedent` |
 | `GET /api/GerantDashboard/statistiques` | `syntheseUsd` | mêmes champs Gérant |
 | `GET /api/SuperAdminDashboard` | `globalStatistiques.syntheseUsd` | `chiffreAffairesGlobal`, `montantTotalArrieresGlobal`, `montantTotalPaiementsGlobal` |
 | `GET /api/SuperAdminDashboard/global-statistiques` | `syntheseUsd` | mêmes champs Super-Admin |
@@ -160,7 +160,7 @@ Affichage CA : `chiffreAffaires` + `codeDevisePrincipale`, puis `syntheseUsd.chi
     "montantTotalEncaisse": 4200000,
     "montantTotalArrieres": 800000,
     "totalGeneralArriere": 800000,
-    "chiffreAffairesJournalier": 150000,
+    "montantTotalDepensesMois": 450000,
     "syntheseUsd": {
       "chiffreAffairesTotal": {
         "montantEquivalentUsd": 2000.00,
@@ -171,7 +171,9 @@ Affichage CA : `chiffreAffaires` + `codeDevisePrincipale`, puis `syntheseUsd.chi
       "montantTotalEncaisse": { "montantEquivalentUsd": 1680.00, "tauxVersUsd": null, "dateTaux": "2026-08-14T16:00:00Z", "conversionUsdDisponible": true },
       "montantTotalArrieres": { "montantEquivalentUsd": 320.00, "tauxVersUsd": null, "dateTaux": "2026-08-14T16:00:00Z", "conversionUsdDisponible": true },
       "totalGeneralArriere": { "montantEquivalentUsd": 320.00, "tauxVersUsd": null, "dateTaux": "2026-08-14T16:00:00Z", "conversionUsdDisponible": true },
-      "chiffreAffairesJournalier": { "montantEquivalentUsd": 60.00, "tauxVersUsd": null, "dateTaux": "2026-08-14T16:00:00Z", "conversionUsdDisponible": true }
+      "chiffreAffairesJournalier": { "montantEquivalentUsd": 60.00, "tauxVersUsd": null, "dateTaux": "2026-08-14T16:00:00Z", "conversionUsdDisponible": true },
+      "montantTotalDepensesMois": { "montantEquivalentUsd": 180.00, "tauxVersUsd": null, "dateTaux": "2026-08-14T16:00:00Z", "conversionUsdDisponible": true },
+      "montantTotalFacturesMoisPrecedent": { "montantEquivalentUsd": 1200.00, "tauxVersUsd": null, "dateTaux": "2026-08-14T16:00:00Z", "conversionUsdDisponible": true }
     }
   }
 }

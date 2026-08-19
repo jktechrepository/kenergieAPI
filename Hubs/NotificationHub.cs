@@ -1,6 +1,7 @@
+using System.Security.Claims;
+using KenergieAPI.Services.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using System.Security.Claims;
 
 namespace KenergieAPI.Hubs
 {
@@ -11,10 +12,14 @@ namespace KenergieAPI.Hubs
     public class NotificationHub : Hub
     {
         private readonly ILogger<NotificationHub> _logger;
+        private readonly INotificationRepository _notificationRepository;
 
-        public NotificationHub(ILogger<NotificationHub> logger)
+        public NotificationHub(
+            ILogger<NotificationHub> logger,
+            INotificationRepository notificationRepository)
         {
             _logger = logger;
+            _notificationRepository = notificationRepository;
         }
 
         /// <summary>
@@ -24,18 +29,17 @@ namespace KenergieAPI.Hubs
         {
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var userName = Context.User?.FindFirst(ClaimTypes.Name)?.Value;
-            
+
             if (!string.IsNullOrEmpty(userId))
             {
-                // Ajouter l'utilisateur à son groupe personnel
                 await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
-                
-                // Ajouter l'utilisateur au groupe général
                 await Groups.AddToGroupAsync(Context.ConnectionId, "all_users");
-                
-                _logger.LogInformation($"User {userName} (ID: {userId}) connected to NotificationHub. ConnectionId: {Context.ConnectionId}");
+
+                _logger.LogInformation(
+                    "User {UserName} (ID: {UserId}) connected to NotificationHub. ConnectionId: {ConnectionId}",
+                    userName, userId, Context.ConnectionId);
             }
-            
+
             await base.OnConnectedAsync();
         }
 
@@ -46,12 +50,14 @@ namespace KenergieAPI.Hubs
         {
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var userName = Context.User?.FindFirst(ClaimTypes.Name)?.Value;
-            
+
             if (!string.IsNullOrEmpty(userId))
             {
-                _logger.LogInformation($"User {userName} (ID: {userId}) disconnected from NotificationHub. ConnectionId: {Context.ConnectionId}");
+                _logger.LogInformation(
+                    "User {UserName} (ID: {UserId}) disconnected from NotificationHub. ConnectionId: {ConnectionId}",
+                    userName, userId, Context.ConnectionId);
             }
-            
+
             await base.OnDisconnectedAsync(exception);
         }
 
@@ -61,7 +67,7 @@ namespace KenergieAPI.Hubs
         public async Task JoinGroup(string groupName)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
-            _logger.LogInformation($"User {Context.User?.Identity?.Name} joined group: {groupName}");
+            _logger.LogInformation("User {User} joined group: {Group}", Context.User?.Identity?.Name, groupName);
         }
 
         /// <summary>
@@ -70,23 +76,75 @@ namespace KenergieAPI.Hubs
         public async Task LeaveGroup(string groupName)
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
-            _logger.LogInformation($"User {Context.User?.Identity?.Name} left group: {groupName}");
+            _logger.LogInformation("User {User} left group: {Group}", Context.User?.Identity?.Name, groupName);
         }
 
         /// <summary>
-        /// Marquer une notification comme lue
+        /// Marquer une notification comme lue (persiste EstLue / DateLecture en base).
+        /// Réservé au destinataire de la notification.
         /// </summary>
         public async Task MarkNotificationAsRead(int notificationId)
         {
-            var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!string.IsNullOrEmpty(userId))
+            var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId) || userId <= 0)
             {
-                // Ici, vous pourriez appeler un service pour marquer la notification comme lue
-                _logger.LogInformation($"User {userId} marked notification {notificationId} as read");
-                
-                // Notifier le client que la notification a été marquée comme lue
-                await Clients.Caller.SendAsync("NotificationMarkedAsRead", notificationId);
+                _logger.LogWarning("MarkNotificationAsRead: utilisateur non authentifié");
+                await Clients.Caller.SendAsync("NotificationMarkFailed", new
+                {
+                    notificationId,
+                    reason = "unauthorized"
+                });
+                return;
             }
+
+            var notification = await _notificationRepository.GetByIdAsync(notificationId);
+            if (notification == null)
+            {
+                _logger.LogWarning(
+                    "MarkNotificationAsRead: notification {NotificationId} introuvable (user {UserId})",
+                    notificationId, userId);
+                await Clients.Caller.SendAsync("NotificationMarkFailed", new
+                {
+                    notificationId,
+                    reason = "not_found"
+                });
+                return;
+            }
+
+            if (!notification.IdDestinataire.HasValue || notification.IdDestinataire.Value != userId)
+            {
+                _logger.LogWarning(
+                    "MarkNotificationAsRead: accès refusé notification {NotificationId} pour user {UserId}",
+                    notificationId, userId);
+                await Clients.Caller.SendAsync("NotificationMarkFailed", new
+                {
+                    notificationId,
+                    reason = "forbidden"
+                });
+                return;
+            }
+
+            if (notification.EstLue)
+            {
+                await Clients.Caller.SendAsync("NotificationMarkedAsRead", notificationId);
+                return;
+            }
+
+            var success = await _notificationRepository.MarquerCommeLueAsync(notificationId);
+            if (!success)
+            {
+                await Clients.Caller.SendAsync("NotificationMarkFailed", new
+                {
+                    notificationId,
+                    reason = "not_found"
+                });
+                return;
+            }
+
+            _logger.LogInformation(
+                "User {UserId} marked notification {NotificationId} as read (persisted)",
+                userId, notificationId);
+            await Clients.Caller.SendAsync("NotificationMarkedAsRead", notificationId);
         }
 
         /// <summary>
@@ -96,7 +154,7 @@ namespace KenergieAPI.Hubs
         {
             var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var userName = Context.User?.FindFirst(ClaimTypes.Name)?.Value;
-            
+
             await Clients.Caller.SendAsync("ConnectionStatus", new
             {
                 IsConnected = true,

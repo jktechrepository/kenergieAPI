@@ -42,16 +42,34 @@ namespace Kenergie.Models
         public decimal MontantPaye { get; set; }
 
         /// <summary>
-        /// Code devise du paiement (doit correspondre à la devise de la ClientFacture en phase 1).
+        /// Montant réellement débité dans la devise du moyen de paiement (utile en cross-devise électronique).
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? MontantPayeDevisePaiement { get; set; }
+
+        /// <summary>
+        /// Code devise réellement débitée / utilisée par le moyen de paiement.
         /// </summary>
         [MaxLength(3)]
         public string? CodeDevisePaiement { get; set; }
+
+        /// <summary>
+        /// Devise de la facture soldée par ce paiement.
+        /// </summary>
+        [MaxLength(3)]
+        public string? CodeDeviseFacture { get; set; }
 
         /// <summary>
         /// Snapshot de la devise principale société au moment du paiement.
         /// </summary>
         [MaxLength(3)]
         public string? CodeDevisePrincipale { get; set; }
+
+        /// <summary>
+        /// Taux figé devise facture -> devise de paiement pour les paiements cross-devise.
+        /// </summary>
+        [Column(TypeName = "decimal(18,6)")]
+        public decimal? TauxFactureVersDevisePaiement { get; set; }
 
         /// <summary>
         /// Taux figé vers la devise principale.

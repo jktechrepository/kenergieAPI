@@ -124,9 +124,25 @@ namespace Kenergie.Models.DTOs.Client
         public int? IdAxe { get; set; }
 
         /// <summary>
-        /// Inclure les clients inactifs
+        /// Inclure les clients inactifs (rétro-compatibilité ; ignoré si IsActif est fourni)
         /// </summary>
         public bool IncludeInactive { get; set; } = false;
+
+        /// <summary>
+        /// Filtre sur le statut actif du client (optionnel).
+        /// Non fourni + IncludeInactive=false → actifs seulement (défaut).
+        /// </summary>
+        public bool? IsActif { get; set; }
+
+        /// <summary>
+        /// Indique si un filtre IsActif est explicitement fourni.
+        /// </summary>
+        public bool HasIsActifFilter => IsActif.HasValue;
+
+        /// <summary>
+        /// Valeur du filtre IsActif (défaut true si non spécifié).
+        /// </summary>
+        public bool ActifFilterValue => IsActif ?? true;
 
         /// <summary>
         /// Terme de recherche optionnel

@@ -35,6 +35,10 @@ namespace KenergieAPI.Services.Repositories
         /// <summary>
         /// Envoyer une notification personnalisée à un utilisateur
         /// </summary>
+        /// <summary>
+        /// Notification personnalisée (construit un payload Notification et émet ReceiveNotification).
+        /// Conserve aussi ReceiveCustomNotification en compatibilité dépréciée.
+        /// </summary>
         Task SendCustomNotificationAsync(int userId, string title, string message, string type = "info");
 
         /// <summary>

@@ -2,44 +2,57 @@
 
 ## 🎯 Vue d'ensemble
 
-Nouvel endpoint simplifié pour diffuser toutes les factures en attente de diffusion d'une société en une seule opération.
+Nouvel endpoint pour diffuser les factures en attente d'une société **pour une période donnée** (année / mois d'émission).
 
 **Endpoint :** `POST /api/Facture/societe/{idSociete}/diffusion/bulk`  
-**Autorisation :** Super-Admin, Admin, Gerant
+**Autorisation :** Super-Admin, Admin, Gerant (permission `Facture.Update`)
 
 ---
 
-## ✨ Avantages
+## Avantages
 
 ### Simplicité
-- ✅ **Un seul paramètre** : `idSociete`
-- ✅ **Pas besoin de spécifier chaque facture** individuellement
-- ✅ **Traitement automatique** de toutes les factures en attente
+- Un paramètre path : `idSociete`
+- Query optionnels : `annee`, `mois` (sinon **mois précédent** par défaut)
+- Pas besoin de spécifier chaque facture individuellement
 
 ### Efficacité
-- ✅ **Traitement en batch** : Toutes les factures sont traitées en une seule requête
-- ✅ **Mise en queue asynchrone** : Ne bloque pas la réponse API
-- ✅ **Gestion des erreurs** : Continue même si une facture échoue
+- Traitement en batch dans une seule requête
+- Mise en queue asynchrone (ne bloque pas la réponse API)
+- Gestion des erreurs : continue même si une facture échoue
 
 ### Sécurité
-- ✅ **Vérification de société** : Seules les factures de la société sont diffusées
-- ✅ **Filtrage automatique** : Seules les factures avec `estDiffusee = false` sont traitées
+- Vérification de société
+- Filtrage : `estDiffusee = false` + période `MoisEmission` / `AnneesEmission`
 
 ---
 
-## 📡 Utilisation
+## Utilisation
 
-### Requête
+### Requête (défaut = mois calendaire précédent)
 
 ```http
 POST /api/Facture/societe/1/diffusion/bulk
 Authorization: Bearer {token}
 ```
 
-**Paramètres :**
-- `idSociete` (path) : Identifiant de la société
+Exemple le 15/08/2026 → diffuse la période **07/2026**.
 
-**Aucun body requis** - L'endpoint récupère automatiquement toutes les factures en attente.
+### Requête avec période explicite
+
+```http
+POST /api/Facture/societe/1/diffusion/bulk?annee=2026&mois=5
+Authorization: Bearer {token}
+```
+
+**Paramètres :**
+- `idSociete` (path, obligatoire) : société cible
+- `annee` (query, optionnel) : à fournir **avec** `mois`
+- `mois` (query, optionnel) : 1–12, à fournir **avec** `annee`
+
+Si un seul de `annee` / `mois` est fourni → **400**.
+
+**Aucun body requis.**
 
 ### Réponse Succès (200 OK)
 
@@ -47,6 +60,8 @@ Authorization: Bearer {token}
 {
   "success": true,
   "societeId": 1,
+  "annee": 2026,
+  "mois": 7,
   "totalFactures": 3,
   "facturesEnQueue": 3,
   "facturesEchecs": 0,
@@ -75,7 +90,7 @@ Authorization: Bearer {token}
   ],
   "erreurs": [],
   "duree": "0.15s",
-  "message": "Toutes les 3 facture(s) ont été mises en queue pour diffusion"
+  "message": "Toutes les 3 facture(s) de 07/2026 ont été mises en queue pour diffusion"
 }
 ```
 
@@ -132,7 +147,7 @@ Si aucune facture en attente :
   "facturesDiffusees": [],
   "erreurs": [],
   "duree": "0.02s",
-  "message": "Aucune facture en attente de diffusion pour cette société"
+  "message": "Aucune facture en attente de diffusion pour la société 1 sur la période 07/2026"
 }
 ```
 
@@ -141,28 +156,25 @@ Si aucune facture en attente :
 ## 🔄 Flux de Traitement
 
 ```
-1. POST /api/Facture/societe/{idSociete}/diffusion/bulk
+1. POST /api/Facture/societe/{idSociete}/diffusion/bulk[?annee=&mois=]
    ↓
 2. Vérifier que la société existe
    ↓
-3. Récupérer toutes les factures avec :
+3. Résoudre la période (défaut = mois calendaire précédent)
+   ↓
+4. Récupérer les factures avec :
    - Statut = true
    - EstDiffusee = false
+   - MoisEmission / AnneesEmission = période
    - Usage.CategorieClient.IdSociete = idSociete
    ↓
-4. Pour chaque facture :
-   a. Vérifier que l'usage existe
-   b. Compter les clients (GetTotalClientsByUsageAsync)
-   c. Marquer EstDiffusee = true, DateDiffusion = DateTime.Now
-   d. Mettre à jour la facture
-   e. Enqueue dans la queue asynchrone
-   f. Ajouter à la liste des succès
+5. Pour chaque facture :
+   a. Vérifier usage + ClientFacture
+   b. Compter les clients
+   c. Marquer EstDiffusee = true, DateDiffusion = now
+   d. Enqueue async
    ↓
-5. Si erreur sur une facture :
-   - Ajouter à la liste des erreurs
-   - Continuer avec les autres factures
-   ↓
-6. Retourner le résumé (succès/échecs)
+6. Retourner le résumé (succès/échecs + annee/mois)
 ```
 
 ---
@@ -171,11 +183,12 @@ Si aucune facture en attente :
 
 Les factures sélectionnées doivent respecter **tous** ces critères :
 
-1. ✅ `Statut = true` (facture active)
-2. ✅ `EstDiffusee = false` (pas encore diffusée)
-3. ✅ `Usage.CategorieClient.IdSociete = idSociete` (appartient à la société)
+1. `Statut = true` (facture active)
+2. `EstDiffusee = false` (pas encore diffusée)
+3. `MoisEmission` / `AnneesEmission` = période résolue (query ou mois précédent)
+4. `Usage.CategorieClient.IdSociete = idSociete`
 
-**Tri :** Les factures sont triées par `DateEmission` puis `DateCreation` (plus anciennes en premier).
+**Tri :** `DateEmission` puis `DateCreation` (plus anciennes en premier).
 
 ---
 
@@ -204,21 +217,18 @@ Lorsqu'une facture est mise en queue pour diffusion :
 
 ## 🔍 Exemples d'Utilisation
 
-### Exemple 1 : Diffuser toutes les factures en attente
+### Exemple 1 : Diffuser le mois précédent (défaut)
 
 ```bash
 curl -X POST "https://api.example.com/api/Facture/societe/1/diffusion/bulk" \
   -H "Authorization: Bearer {token}"
 ```
 
-### Exemple 2 : Vérifier les factures en attente avant diffusion
+### Exemple 2 : Diffuser une période explicite
 
 ```bash
-# 1. Lister les factures en attente
-GET /api/Facture/societe/1?estDiffusee=false
-
-# 2. Diffuser toutes les factures en attente
-POST /api/Facture/societe/1/diffusion/bulk
+curl -X POST "https://api.example.com/api/Facture/societe/1/diffusion/bulk?annee=2026&mois=5" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ---

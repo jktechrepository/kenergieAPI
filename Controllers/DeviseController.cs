@@ -1,8 +1,10 @@
+using Kenergie.Data;
 using Kenergie.Helpers;
 using Kenergie.Models.DTOs.Devise;
 using Kenergie.Services.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Kenergie.Controllers
 {
@@ -12,34 +14,48 @@ namespace Kenergie.Controllers
     public class DeviseController : ControllerBase
     {
         private const string RolesLecture =
-            "Super-Admin,Admin,Gerant,Financier,Caissier,Responsable Commercial,Agent Direction Commercial";
+            "Super-Admin,Admin,Gerant,Financier,Caissier,Responsable Commercial,Agent Direction Commercial,Client";
         private const string RolesAdmin =
             "Super-Admin,Admin,Gerant";
 
         private readonly IDeviseRepository _deviseRepository;
         private readonly ICurrentUserService _currentUserService;
         private readonly IAuditService _auditService;
+        private readonly KenergieDbContext _context;
 
         public DeviseController(
             IDeviseRepository deviseRepository,
             ICurrentUserService currentUserService,
-            IAuditService auditService)
+            IAuditService auditService,
+            KenergieDbContext context)
         {
             _deviseRepository = deviseRepository;
             _currentUserService = currentUserService;
             _auditService = auditService;
+            _context = context;
         }
 
         /// <summary>
         /// Liste les devises actives (scope société hors Super-Admin).
+        /// Client : scope sur la société liée à son IdClient.
         /// </summary>
         [HttpGet("devises")]
         [Authorize(Roles = RolesLecture)]
         public async Task<ActionResult<IEnumerable<DeviseDto>>> GetDevisesActives()
         {
-            int? filter = _currentUserService.IsSuperAdmin ? null : _currentUserService.SocieteId;
-            var devises = await _deviseRepository.GetDevisesActivesAsync(filter);
-            return Ok(devises);
+            try
+            {
+                var filter = await ResolveSocieteFilterAsync();
+                if (IsClientRole() && (!filter.HasValue || filter.Value <= 0))
+                    return BadRequest(new { message = "Société introuvable pour ce client." });
+
+                var devises = await _deviseRepository.GetDevisesActivesAsync(filter);
+                return Ok(devises);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
         }
 
         [HttpGet("devises/{idDeviseMonetaire:int}")]
@@ -50,7 +66,7 @@ namespace Kenergie.Controllers
             if (devise == null)
                 return NotFound(new { message = "Devise introuvable." });
 
-            if (!CanAccessSociete(devise.IdSociete))
+            if (!await CanAccessSocieteAsync(devise.IdSociete))
                 return Forbid();
 
             return Ok(devise);
@@ -63,7 +79,7 @@ namespace Kenergie.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            if (!CanAccessSociete(dto.IdSociete))
+            if (!await CanAccessSocieteAsync(dto.IdSociete))
                 return Forbid();
 
             try
@@ -98,7 +114,7 @@ namespace Kenergie.Controllers
             if (existing == null)
                 return NotFound(new { message = "Devise introuvable." });
 
-            if (!CanAccessSociete(existing.IdSociete))
+            if (!await CanAccessSocieteAsync(existing.IdSociete))
                 return Forbid();
 
             try
@@ -122,7 +138,7 @@ namespace Kenergie.Controllers
         [Authorize(Roles = RolesAdmin)]
         public async Task<IActionResult> SetDevisePrincipale(int idSociete, string codeDevise)
         {
-            if (!CanAccessSociete(idSociete))
+            if (!await CanAccessSocieteAsync(idSociete))
                 return Forbid();
 
             try
@@ -147,7 +163,7 @@ namespace Kenergie.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            if (!CanAccessSociete(dto.IdSociete))
+            if (!await CanAccessSocieteAsync(dto.IdSociete))
                 return Forbid();
 
             try
@@ -174,12 +190,20 @@ namespace Kenergie.Controllers
             [FromQuery] string? source = null,
             [FromQuery] string? cible = null)
         {
-            if (idSociete.HasValue && !CanAccessSociete(idSociete.Value))
+            if (idSociete.HasValue && !await CanAccessSocieteAsync(idSociete.Value))
                 return Forbid();
 
-            int? societeFilter = _currentUserService.IsSuperAdmin
-                ? idSociete
-                : _currentUserService.SocieteId;
+            int? societeFilter;
+            if (_currentUserService.IsSuperAdmin)
+            {
+                societeFilter = idSociete;
+            }
+            else
+            {
+                societeFilter = await ResolveSocieteFilterAsync();
+                if (IsClientRole() && (!societeFilter.HasValue || societeFilter.Value <= 0))
+                    return BadRequest(new { message = "Société introuvable pour ce client." });
+            }
 
             var taux = await _deviseRepository.GetTauxChangesAsync(societeFilter, source, cible);
             return Ok(taux);
@@ -193,7 +217,7 @@ namespace Kenergie.Controllers
             [FromQuery] decimal montant,
             [FromQuery] DateTime? datePaiement)
         {
-            if (!CanAccessSociete(idSociete))
+            if (!await CanAccessSocieteAsync(idSociete))
                 return Forbid();
 
             try
@@ -215,11 +239,76 @@ namespace Kenergie.Controllers
             }
         }
 
-        private bool CanAccessSociete(int idSociete)
+        private bool IsClientRole()
+        {
+            return string.Equals(_currentUserService.UserRole, "Client", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(_currentUserService.PrimaryRole, "Client", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(_currentUserService.GetUserRole(), "Client", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Super-Admin : null (toutes). Staff : claim SocieteId. Client : claim ou société dérivée de IdClient.
+        /// </summary>
+        private async Task<int?> ResolveSocieteFilterAsync()
+        {
+            if (_currentUserService.IsSuperAdmin)
+                return null;
+
+            if (_currentUserService.SocieteId > 0)
+                return _currentUserService.SocieteId;
+
+            if (IsClientRole())
+                return await ResolveSocieteFromClientAsync();
+
+            return null;
+        }
+
+        private async Task<int?> ResolveSocieteFromClientAsync()
+        {
+            var userId = _currentUserService.UserId;
+            if (userId <= 0)
+                return null;
+
+            var idClient = await _context.Utilisateurs
+                .AsNoTracking()
+                .Where(u => u.IdUtilisateur == userId)
+                .Select(u => u.IdClient)
+                .FirstOrDefaultAsync();
+
+            if (!idClient.HasValue || idClient.Value <= 0)
+                return null;
+
+            var fromUsage = await _context.ClientUsages
+                .AsNoTracking()
+                .Where(cu => cu.IdClient == idClient.Value && cu.Statut)
+                .Select(cu => (int?)cu.Usage!.CategorieClient!.IdSociete)
+                .FirstOrDefaultAsync();
+
+            if (fromUsage.HasValue && fromUsage.Value > 0)
+                return fromUsage.Value;
+
+            return await _context.ClientFactures
+                .AsNoTracking()
+                .Where(cf => cf.IdClient == idClient.Value && cf.Statut && cf.IdFacture != null)
+                .Select(cf => (int?)cf.Facture!.Usage!.CategorieClient!.IdSociete)
+                .FirstOrDefaultAsync();
+        }
+
+        private async Task<bool> CanAccessSocieteAsync(int idSociete)
         {
             if (_currentUserService.IsSuperAdmin)
                 return true;
-            return _currentUserService.SocieteId == idSociete;
+
+            if (_currentUserService.SocieteId > 0)
+                return _currentUserService.SocieteId == idSociete;
+
+            if (IsClientRole())
+            {
+                var resolved = await ResolveSocieteFromClientAsync();
+                return resolved.HasValue && resolved.Value == idSociete;
+            }
+
+            return false;
         }
     }
 }

@@ -26,6 +26,8 @@ namespace Kenergie.Services.Repositories
 
         Task<GlobalFinancierSyntheseUsdDto> BuildGlobalFinancierSyntheseUsdAsync(
             IReadOnlyList<(int IdSociete, decimal ChiffreAffaires, decimal MontantEncaisse, decimal MontantArrieres, decimal TotalGeneralArriere, decimal ChiffreAffairesJournalier)> items,
+            IReadOnlyList<(int IdSociete, decimal Montant)>? depensesMoisItems = null,
+            IReadOnlyList<(int IdSociete, decimal Montant)>? facturesMoisPrecedentItems = null,
             DateTime? date = null);
 
         Task<GlobalStatistiquesSyntheseUsdDto> BuildGlobalStatistiquesSyntheseUsdAsync(
@@ -36,12 +38,16 @@ namespace Kenergie.Services.Repositories
             int idSociete,
             decimal chiffreAffairesMois,
             decimal montantTotalArrieres,
+            decimal montantDepensesMois,
+            decimal montantTotalFacturesMoisPrecedent,
             DateTime? date = null);
 
         Task<DashboardSyntheseUsdDto> BuildDashboardSyntheseUsdAsync(
             int idSociete,
             decimal paiementsDuMois,
             decimal totalGeneralArriere,
+            decimal montantTotalFacturesMoisPrecedent,
+            decimal montantTotalDepensesMois,
             DateTime? date = null);
     }
 }

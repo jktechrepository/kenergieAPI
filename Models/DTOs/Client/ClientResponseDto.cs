@@ -51,6 +51,11 @@ namespace Kenergie.Models.DTOs.Client
         public bool IsActif { get; set; }
 
         /// <summary>
+        /// Date de dernière réactivation (null si jamais réactivé)
+        /// </summary>
+        public DateTime? DateDerniereReactivation { get; set; }
+
+        /// <summary>
         /// Identifiant de l'axe auquel appartient ce client
         /// </summary>
         public int? IdAxe { get; set; }

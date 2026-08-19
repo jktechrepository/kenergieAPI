@@ -144,12 +144,25 @@ namespace Kenergie.Services
                             message,
                             donnees);
 
-                        // SignalR (in-app)
-                        await _signalRService.SendCustomNotificationAsync(
+                        // SignalR (in-app) — événement canonique ReceiveNotification
+                        await _signalRService.SendNotificationToUserAsync(
                             utilisateur.IdUtilisateur,
-                            titre,
-                            message,
-                            "PLAINTE_CLIENT");
+                            new Notification
+                            {
+                                IdNotification = 0,
+                                Titre = titre,
+                                Contenu = message,
+                                TypeNotification = "PLAINTE_CLIENT",
+                                EstLue = false,
+                                EstActive = true,
+                                DateCreation = DateTime.UtcNow,
+                                IdDestinataire = utilisateur.IdUtilisateur,
+                                IdSociete = utilisateur.IdSociete,
+                                CanalUtilise = "InApp",
+                                Priorite = plainteComplete.EstUrgente ? "HIGH" : "INFO",
+                                StatutEnvoi = "Envoye",
+                                PayloadJson = System.Text.Json.JsonSerializer.Serialize(donnees)
+                            });
 
                         succes++;
                     }

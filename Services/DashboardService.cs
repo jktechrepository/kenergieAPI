@@ -63,6 +63,9 @@ namespace Kenergie.Services
                 // 6. Paiements du mois (pour compatibilité)
                 dashboard.PaiementsDuMois = dashboard.CollecteMois.Montant;
 
+                // 6b. Dépenses validées du mois calendaire en cours
+                dashboard.MontantTotalDepensesMois = await GetMontantTotalDepensesMoisAsync(societeId);
+
                 // 7. Répartition clients par catégorie
                 dashboard.RepartitionClientsParCategorie = await GetRepartitionClientsParCategorieAsync(societeId);
 
@@ -72,7 +75,9 @@ namespace Kenergie.Services
                 dashboard.SyntheseUsd = await _usdEnrichment.BuildDashboardSyntheseUsdAsync(
                     societeId,
                     dashboard.PaiementsDuMois,
-                    dashboard.TotalGeneralArriere);
+                    dashboard.TotalGeneralArriere,
+                    dashboard.FactureMois.MontantTotalFacturesMoisPrecedent,
+                    dashboard.MontantTotalDepensesMois);
 
                 return dashboard;
             }
@@ -152,6 +157,23 @@ namespace Kenergie.Services
                 _logger.LogError(ex, "Erreur lors du calcul de la collecte mensuelle pour la société {SocieteId}", societeId);
                 return new CollecteMoisDto();
             }
+        }
+
+        /// <summary>
+        /// Somme des dépenses validées du mois calendaire en cours (devise principale).
+        /// </summary>
+        private async Task<decimal> GetMontantTotalDepensesMoisAsync(int societeId)
+        {
+            var debutMois = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            var finMois = debutMois.AddMonths(1);
+
+            return await _context.Depenses
+                .Where(d => !d.IsDeleted
+                    && d.IdSociete == societeId
+                    && d.Statut == DepenseStatuts.Validee
+                    && d.DateDepense >= debutMois
+                    && d.DateDepense < finMois)
+                .SumAsync(d => d.MontantDevisePrincipale ?? d.Montant);
         }
 
         /// <summary>

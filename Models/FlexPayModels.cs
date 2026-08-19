@@ -89,8 +89,26 @@ namespace Kenergie.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal Montant { get; set; }
 
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal MontantFacture { get; set; }
+
         [MaxLength(3)]
         public string CodeDevisePaiement { get; set; } = "CDF";
+
+        [MaxLength(3)]
+        public string CodeDeviseFacture { get; set; } = "CDF";
+
+        [MaxLength(3)]
+        public string? CodeDevisePrincipale { get; set; }
+
+        [Column(TypeName = "decimal(18,6)")]
+        public decimal? TauxFactureVersPaiement { get; set; }
+
+        [Column(TypeName = "decimal(18,6)")]
+        public decimal? TauxFactureVersDevisePrincipale { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal? MontantFactureDevisePrincipale { get; set; }
 
         [MaxLength(30)]
         public string Methode { get; set; } = MethodeFlexPay.MobileMoney;

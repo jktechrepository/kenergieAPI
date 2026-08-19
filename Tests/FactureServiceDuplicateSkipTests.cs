@@ -21,8 +21,8 @@ namespace Kenergie.Tests
             SeedInfrastructure(context);
 
             context.Clients.AddRange(
-                new Client { IdClient = 1, NomClient = "Client A", AdresseClient = "A", Statut = true, IsActif = true },
-                new Client { IdClient = 2, NomClient = "Client B", AdresseClient = "B", Statut = true, IsActif = true });
+                new Client { IdClient = 1, NomClient = "Client A", AdresseClient = "A", Statut = true, IsActif = true, DateCreation = new DateTime(2026, 1, 1) },
+                new Client { IdClient = 2, NomClient = "Client B", AdresseClient = "B", Statut = true, IsActif = true, DateCreation = new DateTime(2026, 1, 1) });
 
             context.ClientUsages.AddRange(
                 new ClientUsage { IdClient = 1, IdUsage = IdUsage, IdTypeDeCourant = IdTypePermanent, Statut = true, nombreBatiment = 1 },
@@ -53,8 +53,8 @@ namespace Kenergie.Tests
             SeedInfrastructure(context);
 
             context.Clients.AddRange(
-                new Client { IdClient = 1, NomClient = "Client A", AdresseClient = "A", Statut = true, IsActif = true },
-                new Client { IdClient = 2, NomClient = "Client B", AdresseClient = "B", Statut = true, IsActif = true });
+                new Client { IdClient = 1, NomClient = "Client A", AdresseClient = "A", Statut = true, IsActif = true, DateCreation = new DateTime(2026, 1, 1) },
+                new Client { IdClient = 2, NomClient = "Client B", AdresseClient = "B", Statut = true, IsActif = true, DateCreation = new DateTime(2026, 1, 1) });
 
             context.ClientUsages.Add(
                 new ClientUsage { IdClient = 1, IdUsage = IdUsage, IdTypeDeCourant = IdTypePermanent, Statut = true, nombreBatiment = 1 });
@@ -87,7 +87,8 @@ namespace Kenergie.Tests
                 NomClient = "Client A",
                 AdresseClient = "A",
                 Statut = true,
-                IsActif = true
+                IsActif = true,
+                DateCreation = new DateTime(2026, 1, 1)
             });
             context.ClientUsages.Add(new ClientUsage
             {
@@ -144,7 +145,8 @@ namespace Kenergie.Tests
                 NomClient = "Client A",
                 AdresseClient = "A",
                 Statut = true,
-                IsActif = true
+                IsActif = true,
+                DateCreation = new DateTime(2026, 1, 1)
             });
             context.ClientUsages.Add(new ClientUsage
             {
@@ -182,8 +184,8 @@ namespace Kenergie.Tests
             SeedInfrastructure(context);
 
             context.Clients.AddRange(
-                new Client { IdClient = 1, NomClient = "A", AdresseClient = "A", Statut = true, IsActif = true },
-                new Client { IdClient = 2, NomClient = "B", AdresseClient = "B", Statut = true, IsActif = true });
+                new Client { IdClient = 1, NomClient = "A", AdresseClient = "A", Statut = true, IsActif = true, DateCreation = new DateTime(2026, 1, 1) },
+                new Client { IdClient = 2, NomClient = "B", AdresseClient = "B", Statut = true, IsActif = true, DateCreation = new DateTime(2026, 1, 1) });
 
             context.ClientUsages.AddRange(
                 new ClientUsage { IdClient = 1, IdUsage = IdUsage, IdTypeDeCourant = IdTypePermanent, Statut = true, nombreBatiment = 1 },

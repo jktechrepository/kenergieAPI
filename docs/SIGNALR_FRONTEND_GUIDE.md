@@ -27,9 +27,11 @@ https://localhost:7110/hubs/notifications
 
 **En production :** Remplacez `localhost:7110` par l'URL de votre serveur.
 
+**Mobile (Flutter) :** guide dédié — [`FRONTEND_INTEGRATION_NOTIFICATIONS_MOBILE.md`](./FRONTEND_INTEGRATION_NOTIFICATIONS_MOBILE.md) (connexion, `ReceiveNotification`, mark as read, REST).
+
 ### Authentification requise
 
-⚠️ **Important :** Le hub nécessite une authentification JWT. Vous devez être connecté et fournir un token valide pour vous connecter.
+⚠️ **Important :** Le hub nécessite une authentification JWT. Vous devez être connecté et fournir un token valide pour vous connecter. Pour WebSockets, le token peut être passé en query `access_token` (supporté côté API pour `/hubs/*`).
 
 ---
 
@@ -357,13 +359,22 @@ Ces méthodes peuvent être appelées depuis le client pour interagir avec le se
 
 ### `MarkNotificationAsRead(notificationId: number)`
 
-Marque une notification comme lue.
+Marque une notification comme lue **et persiste en base** (`EstLue = true`, `DateLecture`).  
+Seule le **destinataire** (`idDestinataire`) de la notification peut l’appeler.
 
 ```javascript
 await signalRService.markNotificationAsRead(123)
 ```
 
-**Réponse :** Le serveur envoie un événement `NotificationMarkedAsRead` avec l'ID de la notification.
+**Succès :** événement `NotificationMarkedAsRead` avec l’id (idempotent si déjà lue).
+
+**Échec :** événement `NotificationMarkFailed` avec `{ notificationId, reason }` où `reason` ∈ `not_found` | `forbidden` | `unauthorized`.
+
+```javascript
+connection.on('NotificationMarkFailed', ({ notificationId, reason }) => {
+  console.warn('Mark failed', notificationId, reason)
+})
+```
 
 ### `GetConnectionStatus()`
 
@@ -400,43 +411,53 @@ await signalRService.leaveGroup('societe_1')
 
 Ces événements sont émis par le serveur et doivent être écoutés côté client.
 
-### `ReceiveNotification`
+### `ReceiveNotification` (canonique)
 
-Reçoit une nouvelle notification.
+**Événement unique à utiliser pour les notifications in-app.** Tous les envois métier (`NotificationSender`, plaintes, etc.) émettent désormais cet événement.
 
 ```javascript
 signalRService.onNotificationReceived((notification) => {
   console.log('Notification:', notification)
   /*
-  Structure de la notification:
+  Payload aligné sur le modèle Notification (JSON camelCase):
   {
-    id: number,
-    title: string,
-    message: string,
-    type: string, // "info", "success", "warning", "error"
-    isRead: boolean,
+    idNotification: number,   // > 0 si persistée en base
+    titre: string,
+    contenu: string,
+    typeNotification: string,
+    estLue: boolean,
     dateCreation: string,
-    expediteur: {
-      id: number,
-      nomComplet: string,
-      photo: string | null
-    } | null,
-    metadata: {
-      societeId: number | null,
-      agentId: number | null
-    }
+    priorite: string,
+    icone: string | null,
+    lienAction: string | null,
+    idDestinataire: number | null,
+    payloadJson: string | null
   }
   */
 })
 ```
 
+### `ReceiveCustomNotification` (déprécié — compatibilité)
+
+Ancien événement `{ title, message, type }`. Toujours émis **en plus** de `ReceiveNotification` uniquement via `SendCustomNotificationAsync` (fallback). Ne plus s’y brancher pour les nouvelles apps ; suppression prévue dans un plan ultérieur.
+
 ### `NotificationMarkedAsRead`
 
-Confirmation qu'une notification a été marquée comme lue.
+Confirmation qu'une notification a été marquée comme lue **en base**.
 
 ```javascript
 signalRService.onNotificationMarkedAsRead((notificationId) => {
   console.log('Notification marquée comme lue:', notificationId)
+})
+```
+
+### `NotificationMarkFailed`
+
+Émis si le marquage échoue (`not_found`, `forbidden`, `unauthorized`).
+
+```javascript
+connection.on('NotificationMarkFailed', (payload) => {
+  console.warn(payload.notificationId, payload.reason)
 })
 ```
 

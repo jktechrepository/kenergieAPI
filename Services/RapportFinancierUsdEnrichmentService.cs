@@ -171,6 +171,8 @@ namespace Kenergie.Services
 
         public async Task<GlobalFinancierSyntheseUsdDto> BuildGlobalFinancierSyntheseUsdAsync(
             IReadOnlyList<(int IdSociete, decimal ChiffreAffaires, decimal MontantEncaisse, decimal MontantArrieres, decimal TotalGeneralArriere, decimal ChiffreAffairesJournalier)> items,
+            IReadOnlyList<(int IdSociete, decimal Montant)>? depensesMoisItems = null,
+            IReadOnlyList<(int IdSociete, decimal Montant)>? facturesMoisPrecedentItems = null,
             DateTime? date = null)
         {
             return new GlobalFinancierSyntheseUsdDto
@@ -184,7 +186,13 @@ namespace Kenergie.Services
                 TotalGeneralArriere = await SumEquivalentUsdAsync(
                     items.Select(i => (i.IdSociete, i.TotalGeneralArriere)).ToList(), date),
                 ChiffreAffairesJournalier = await SumEquivalentUsdAsync(
-                    items.Select(i => (i.IdSociete, i.ChiffreAffairesJournalier)).ToList(), date)
+                    items.Select(i => (i.IdSociete, i.ChiffreAffairesJournalier)).ToList(), date),
+                MontantTotalDepensesMois = depensesMoisItems != null
+                    ? await SumEquivalentUsdAsync(depensesMoisItems, date)
+                    : null,
+                MontantTotalFacturesMoisPrecedent = facturesMoisPrecedentItems != null
+                    ? await SumEquivalentUsdAsync(facturesMoisPrecedentItems, date)
+                    : null
             };
         }
 
@@ -207,12 +215,17 @@ namespace Kenergie.Services
             int idSociete,
             decimal chiffreAffairesMois,
             decimal montantTotalArrieres,
+            decimal montantDepensesMois,
+            decimal montantTotalFacturesMoisPrecedent,
             DateTime? date = null)
         {
             return new SocieteStatistiquesSyntheseUsdDto
             {
                 ChiffreAffairesMois = await BuildEquivalentUsdAsync(idSociete, chiffreAffairesMois, date),
-                MontantTotalArrieres = await BuildEquivalentUsdAsync(idSociete, montantTotalArrieres, date)
+                MontantTotalArrieres = await BuildEquivalentUsdAsync(idSociete, montantTotalArrieres, date),
+                MontantDepensesMois = await BuildEquivalentUsdAsync(idSociete, montantDepensesMois, date),
+                MontantTotalFacturesMoisPrecedent = await BuildEquivalentUsdAsync(
+                    idSociete, montantTotalFacturesMoisPrecedent, date)
             };
         }
 
@@ -220,12 +233,18 @@ namespace Kenergie.Services
             int idSociete,
             decimal paiementsDuMois,
             decimal totalGeneralArriere,
+            decimal montantTotalFacturesMoisPrecedent,
+            decimal montantTotalDepensesMois,
             DateTime? date = null)
         {
             return new DashboardSyntheseUsdDto
             {
                 PaiementsDuMois = await BuildEquivalentUsdAsync(idSociete, paiementsDuMois, date),
-                TotalGeneralArriere = await BuildEquivalentUsdAsync(idSociete, totalGeneralArriere, date)
+                TotalGeneralArriere = await BuildEquivalentUsdAsync(idSociete, totalGeneralArriere, date),
+                MontantTotalFacturesMoisPrecedent = await BuildEquivalentUsdAsync(
+                    idSociete, montantTotalFacturesMoisPrecedent, date),
+                MontantTotalDepensesMois = await BuildEquivalentUsdAsync(
+                    idSociete, montantTotalDepensesMois, date)
             };
         }
 

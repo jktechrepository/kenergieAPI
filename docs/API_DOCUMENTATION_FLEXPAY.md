@@ -26,10 +26,10 @@ Secours : GET /api/FlexPay/verifier/{orderNumber}
 
 | Méthode | Route | Auth |
 |---------|-------|------|
-| POST | `/api/Paiement/electronique` | JWT |
-| GET | `/api/Paiement/electronique/{idPending}` | JWT |
+| POST | `/api/Paiement/electronique` | JWT (`Paiement.Create` ; Client = ses factures) |
+| GET | `/api/Paiement/electronique/{idPending}` | JWT (rôles staff + **Client** ; Client = ses pending uniquement) |
 | POST | `/api/FlexPay/callback` | Public |
-| GET | `/api/FlexPay/verifier/{orderNumber}` | JWT |
+| GET | `/api/FlexPay/verifier/{orderNumber}` | JWT (staff + **Client** ; Client = ses paiements) |
 | GET | `/api/FlexPay/approve\|cancel\|decline` | Public (info carte) |
 | CRUD | `/api/InfoPaiementSociete` | Admin/Financier |
 

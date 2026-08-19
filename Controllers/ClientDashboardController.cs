@@ -43,7 +43,11 @@ namespace Kenergie.Controllers
                 var statistiques = await _clientDashboardService.GetClientStatistiquesAsync();
                 return Ok(statistiques);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception)
             {
                 return StatusCode(500, "Erreur interne du serveur");
             }
@@ -57,7 +61,11 @@ namespace Kenergie.Controllers
                 var factures = await _clientDashboardService.GetFacturesRecentesAsync();
                 return Ok(factures);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception)
             {
                 return StatusCode(500, "Erreur interne du serveur");
             }
@@ -71,7 +79,11 @@ namespace Kenergie.Controllers
                 var paiements = await _clientDashboardService.GetPaiementsRecentsAsync();
                 return Ok(paiements);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception)
             {
                 return StatusCode(500, "Erreur interne du serveur");
             }
@@ -85,7 +97,11 @@ namespace Kenergie.Controllers
                 var consommations = await _clientDashboardService.GetConsommationsAsync();
                 return Ok(consommations);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception)
             {
                 return StatusCode(500, "Erreur interne du serveur");
             }
@@ -99,7 +115,11 @@ namespace Kenergie.Controllers
                 var alertes = await _clientDashboardService.GetAlertesClientAsync();
                 return Ok(alertes);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception)
             {
                 return StatusCode(500, "Erreur interne du serveur");
             }
@@ -113,7 +133,11 @@ namespace Kenergie.Controllers
                 var resume = await _clientDashboardService.GetResumeClientAsync();
                 return Ok(resume);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception)
             {
                 return StatusCode(500, "Erreur interne du serveur");
             }

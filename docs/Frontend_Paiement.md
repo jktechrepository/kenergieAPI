@@ -20,7 +20,7 @@
 | `sortDescending` | `false` | `true` = ordre décroissant sur le champ `sortBy` |
 
 ### Filtres optionnels (`PaiementPagedRequest`)
-Tous les filtres ci-dessous sont **optionnels**. Aucun filtre de date n'est appliqué par défaut.
+Les filtres ci-dessous sont optionnels, **sauf la période** : si aucun filtre temporel est fourni (`date`, `dateDebut`, `dateFin`, `mois`, `annee`), l'API retourne par défaut les paiements du **mois calendaire en cours** (selon l'horloge du serveur).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -33,15 +33,16 @@ Tous les filtres ci-dessous sont **optionnels**. Aucun filtre de date n'est appl
 | `idAxe` | int | Axe du client (`Client.IdAxe`) |
 
 **Combinaisons utiles :**
-- Historique complet (sans filtre date) : ne pas envoyer `date`, `dateDebut`, `dateFin`, `mois`, `annee`.
+- Mois en cours (défaut) : ne pas envoyer `date`, `dateDebut`, `dateFin`, `mois`, `annee`.
+- Historique complet : période explicite large, ex. `?dateDebut=2020-01-01&dateFin=2030-12-31`.
 - Paiements du jour : `?date=2026-05-16` (date du jour côté client).
 - Période : `?dateDebut=2026-05-01&dateFin=2026-05-16`.
-- Mois : `?mois=5&annee=2026`.
+- Mois ciblé : `?mois=5&annee=2026`.
 
-> **Migration :** avant, l'API filtrait implicitement sur la date du jour. Le front doit désormais passer `date` (ou `dateDebut` / `dateFin`) explicitement pour les écrans « caisse du jour ».
+> **Note :** pour l'écran « caisse du jour », passer explicitement `date` (ou `dateDebut` / `dateFin` sur la journée).
 
 ### Filtres toujours appliqués (côté API)
-Sans paramètre query, la réponse reste limitée aux paiements qui respectent :
+Sans filtre temporel explicite, la réponse est limitée aux paiements du **mois en cours**, en plus des critères suivants :
 - société = `{idSociete}` (via facture → usage → catégorie client) ;
 - facture liée et active (`Facture.Statut == true`) ;
 - paiement non supprimé (`IsDeleted == false`).
@@ -78,10 +79,16 @@ Résolution : `idClientFacture` explicite, sinon couple `(idClient, idFacture)` 
 4) Lien vers la facture associée (`idFacture`) et vers le client (`idClient`) si besoin.
 
 ### Exemples cURL
-Historique paginé (sans filtre date) :
+Mois en cours (défaut, sans filtre date) :
 ```
 curl -H "Authorization: Bearer $TOKEN" \
   "https://mombongo.asdc-rdc.org/api/Paiement/societe/1/paged?pageNumber=1&pageSize=20&sortBy=DatePaiement&sortDescending=true"
+```
+
+Historique complet (période explicite) :
+```
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://mombongo.asdc-rdc.org/api/Paiement/societe/1/paged?dateDebut=2020-01-01&dateFin=2030-12-31&pageNumber=1&pageSize=20"
 ```
 
 Paiements du jour :
@@ -104,6 +111,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ### Bonnes pratiques Front
 - Utiliser la pagination en liste principale ; garder la non paginée pour des exports courts.
+- L'écran liste par défaut affiche le mois en cours sans paramètre ; passer une période explicite pour l'historique.
 - Pour l'écran « paiements du jour », passer explicitement `date` (timezone / jour local côté client).
 - Surveiller `statut` (ex. : `Validé`) avant d'afficher comme payé.
 - Quand `resteAPaye` ou `montantAPaye` sont renseignés, les mettre en avant pour la relance.

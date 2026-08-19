@@ -453,6 +453,7 @@ namespace Kenergie.Services
                     if (clientUsage.Client != null &&
                         !FactureBillingEligibilityHelper.IsClientEligibleForBillingPeriod(
                             clientUsage.Client.DateCreation,
+                            clientUsage.Client.DateDerniereReactivation,
                             facture.MoisEmission,
                             facture.AnneesEmission))
                     {

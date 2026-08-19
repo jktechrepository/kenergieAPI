@@ -102,6 +102,100 @@ namespace Kenergie.Tests
             Assert.Equal(4m, synthese.MontantDu!.MontantEquivalentUsd);
         }
 
+        [Fact]
+        public async Task BuildDashboardSyntheseUsdAsync_PopulatesAllSynthesisFields()
+        {
+            await using var context = CreateInMemoryContext();
+            SeedSocieteWithUsd(context, societeId: 1, principale: "CDF", tauxCdfUsd: 0.001m);
+
+            var service = CreateService(context);
+            var synthese = await service.BuildDashboardSyntheseUsdAsync(
+                1,
+                paiementsDuMois: 1000m,
+                totalGeneralArriere: 2000m,
+                montantTotalFacturesMoisPrecedent: 3000m,
+                montantTotalDepensesMois: 4000m);
+
+            Assert.True(synthese.PaiementsDuMois!.ConversionUsdDisponible);
+            Assert.Equal(1m, synthese.PaiementsDuMois.MontantEquivalentUsd);
+            Assert.Equal(2m, synthese.TotalGeneralArriere!.MontantEquivalentUsd);
+            Assert.Equal(3m, synthese.MontantTotalFacturesMoisPrecedent!.MontantEquivalentUsd);
+            Assert.Equal(4m, synthese.MontantTotalDepensesMois!.MontantEquivalentUsd);
+            Assert.Equal(0.001m, synthese.MontantTotalDepensesMois.TauxVersUsd);
+        }
+
+        [Fact]
+        public async Task BuildSocieteStatistiquesSyntheseUsdAsync_PopulatesDepensesMoisUsd()
+        {
+            await using var context = CreateInMemoryContext();
+            SeedSocieteWithUsd(context, societeId: 1, principale: "CDF", tauxCdfUsd: 0.001m);
+
+            var service = CreateService(context);
+            var synthese = await service.BuildSocieteStatistiquesSyntheseUsdAsync(
+                1,
+                chiffreAffairesMois: 1000m,
+                montantTotalArrieres: 2000m,
+                montantDepensesMois: 4000m,
+                montantTotalFacturesMoisPrecedent: 3000m);
+
+            Assert.True(synthese.ChiffreAffairesMois!.ConversionUsdDisponible);
+            Assert.Equal(1m, synthese.ChiffreAffairesMois.MontantEquivalentUsd);
+            Assert.Equal(2m, synthese.MontantTotalArrieres!.MontantEquivalentUsd);
+            Assert.True(synthese.MontantDepensesMois!.ConversionUsdDisponible);
+            Assert.Equal(4m, synthese.MontantDepensesMois.MontantEquivalentUsd);
+            Assert.Equal(0.001m, synthese.MontantDepensesMois.TauxVersUsd);
+            Assert.True(synthese.MontantTotalFacturesMoisPrecedent!.ConversionUsdDisponible);
+            Assert.Equal(3m, synthese.MontantTotalFacturesMoisPrecedent.MontantEquivalentUsd);
+            Assert.Equal(0.001m, synthese.MontantTotalFacturesMoisPrecedent.TauxVersUsd);
+        }
+
+        [Fact]
+        public async Task BuildGlobalFinancierSyntheseUsdAsync_PopulatesDepensesMoisUsd()
+        {
+            await using var context = CreateInMemoryContext();
+            SeedSocieteWithUsd(context, societeId: 1, principale: "CDF", tauxCdfUsd: 0.001m);
+            SeedSocieteWithUsd(context, societeId: 2, principale: "CDF", tauxCdfUsd: 0.001m);
+
+            var service = CreateService(context);
+            var synthese = await service.BuildGlobalFinancierSyntheseUsdAsync(
+                new[]
+                {
+                    (1, 1000m, 800m, 200m, 200m, 100m),
+                    (2, 2000m, 1500m, 500m, 500m, 200m)
+                },
+                depensesMoisItems: new[]
+                {
+                    (1, 3000m),
+                    (2, 5000m)
+                },
+                facturesMoisPrecedentItems: new[]
+                {
+                    (1, 2000m),
+                    (2, 4000m)
+                });
+
+            Assert.True(synthese.MontantTotalDepensesMois!.ConversionUsdDisponible);
+            Assert.Equal(8m, synthese.MontantTotalDepensesMois.MontantEquivalentUsd);
+            Assert.Null(synthese.MontantTotalDepensesMois.TauxVersUsd);
+            Assert.True(synthese.MontantTotalFacturesMoisPrecedent!.ConversionUsdDisponible);
+            Assert.Equal(6m, synthese.MontantTotalFacturesMoisPrecedent.MontantEquivalentUsd);
+            Assert.Null(synthese.MontantTotalFacturesMoisPrecedent.TauxVersUsd);
+        }
+
+        [Fact]
+        public async Task BuildGlobalFinancierSyntheseUsdAsync_WithoutDepensesItems_LeavesDepensesUsdNull()
+        {
+            await using var context = CreateInMemoryContext();
+            SeedSocieteWithUsd(context, societeId: 1, principale: "CDF", tauxCdfUsd: 0.001m);
+
+            var service = CreateService(context);
+            var synthese = await service.BuildGlobalFinancierSyntheseUsdAsync(
+                new[] { (1, 1000m, 800m, 200m, 200m, 100m) });
+
+            Assert.Null(synthese.MontantTotalDepensesMois);
+            Assert.Null(synthese.MontantTotalFacturesMoisPrecedent);
+        }
+
         private static RapportFinancierUsdEnrichmentService CreateService(KenergieDbContext context)
         {
             var deviseConversion = new DeviseConversionService(context);

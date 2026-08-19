@@ -218,12 +218,15 @@ namespace Kenergie.Services
         }
 
         /// <summary>
-        /// Phase 1 : le paiement doit être dans la même devise que la ClientFacture / Facture.
+        /// Phase 1 : le paiement CASH doit être dans la même devise que la facture.
+        /// Paiement électronique : autorise un snapshot cross-devise déjà figé en amont.
         /// </summary>
         private async Task ApplyPaiementDeviseSnapshotAsync(Paiement paiement)
         {
             var clientFacture = await ResolveClientFactureForPaiementAsync(paiement);
-            string? codeFacture = clientFacture?.CodeDevisePrix;
+            string? codeFacture = !string.IsNullOrWhiteSpace(paiement.CodeDeviseFacture)
+                ? paiement.CodeDeviseFacture
+                : clientFacture?.CodeDevisePrix;
 
             if (string.IsNullOrWhiteSpace(codeFacture) && paiement.IdFacture.HasValue)
             {
@@ -246,17 +249,50 @@ namespace Kenergie.Services
                     ? paiement.CodeDevisePaiement!
                     : codeFacture);
 
-            if (!string.Equals(codePaiement, codeFacture, StringComparison.OrdinalIgnoreCase))
+            var methodeNormalisee = Kenergie.Helpers.MethodePaiementHelper.Normalize(paiement.MethodePaiement);
+            var isFlexPay = Kenergie.Helpers.MethodePaiementHelper.IsFlexPay(methodeNormalisee);
+            var isCrossCurrencyFlexPay = isFlexPay &&
+                !string.Equals(codePaiement, codeFacture, StringComparison.OrdinalIgnoreCase);
+
+            if (!isCrossCurrencyFlexPay &&
+                !string.Equals(codePaiement, codeFacture, StringComparison.OrdinalIgnoreCase))
             {
                 throw new ArgumentException(
                     $"Le paiement doit être dans la même devise que la facture ({codeFacture}). Devise reçue: {codePaiement}.");
             }
 
+            paiement.CodeDeviseFacture = codeFacture;
+            paiement.CodeDevisePaiement = codePaiement;
+            paiement.CodeDevisePrincipale = principale;
+
+            if (isCrossCurrencyFlexPay)
+            {
+                paiement.MontantPayeDevisePaiement ??= paiement.MontantPaye;
+
+                if (!paiement.TauxFactureVersDevisePaiement.HasValue)
+                {
+                    var conversionFactureVersPaiement = await _deviseConversionService.ConvertirAsync(
+                        idSociete.Value, codeFacture, codePaiement, paiement.MontantPaye, paiement.DatePaiement);
+                    paiement.TauxFactureVersDevisePaiement = conversionFactureVersPaiement.Taux;
+                    paiement.MontantPayeDevisePaiement = conversionFactureVersPaiement.MontantConverti;
+                }
+
+                if (!paiement.TauxVersDevisePrincipale.HasValue || !paiement.MontantPayeDevisePrincipale.HasValue)
+                {
+                    var conversionFactureVersPrincipale = await _deviseConversionService.ConvertirVersPrincipaleAsync(
+                        idSociete.Value, codeFacture, paiement.MontantPaye, paiement.DatePaiement);
+                    paiement.TauxVersDevisePrincipale = conversionFactureVersPrincipale.Taux;
+                    paiement.MontantPayeDevisePrincipale = conversionFactureVersPrincipale.MontantConverti;
+                }
+
+                return;
+            }
+
             var conversion = await _deviseConversionService.ConvertirVersPrincipaleAsync(
                 idSociete.Value, codePaiement, paiement.MontantPaye, paiement.DatePaiement);
 
-            paiement.CodeDevisePaiement = codePaiement;
-            paiement.CodeDevisePrincipale = principale;
+            paiement.MontantPayeDevisePaiement ??= paiement.MontantPaye;
+            paiement.TauxFactureVersDevisePaiement ??= 1m;
             paiement.TauxVersDevisePrincipale = conversion.Taux;
             paiement.MontantPayeDevisePrincipale = conversion.MontantConverti;
         }
@@ -887,6 +923,18 @@ namespace Kenergie.Services
             if (request.IdAxe.HasValue)
             {
                 query = query.Where(p => p.Client != null && p.Client.IdAxe == request.IdAxe.Value);
+            }
+
+            // Par défaut : paiements du mois calendaire en cours (si aucun filtre temporel fourni)
+            if (!request.Date.HasValue &&
+                !request.DateDebut.HasValue &&
+                !request.DateFin.HasValue &&
+                !request.Mois.HasValue &&
+                !request.Annee.HasValue)
+            {
+                var debutMois = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                var finMois = debutMois.AddMonths(1);
+                query = query.Where(p => p.DatePaiement >= debutMois && p.DatePaiement < finMois);
             }
 
             return query;

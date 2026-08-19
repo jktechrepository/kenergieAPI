@@ -6,6 +6,12 @@ namespace Kenergie.Models.DTOs
     public class FactureImpayeeDto
     {
         public int IdFacture { get; set; }
+
+        /// <summary>
+        /// Identifiant de la ligne ClientFacture (présent pour les listes par client ; null pour les agrégats société).
+        /// </summary>
+        public int? IdClientFacture { get; set; }
+
         public string? NumeroFacture { get; set; }
         public DateTime? DateEmission { get; set; }
         public int MoisEmission { get; set; }

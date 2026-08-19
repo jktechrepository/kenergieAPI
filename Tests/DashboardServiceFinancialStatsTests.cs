@@ -147,6 +147,65 @@ namespace Kenergie.Tests
             Assert.Equal(700m, dashboard.TotalGeneralArriere);
         }
 
+        [Fact]
+        public async Task GetDashboardDataAsync_MontantTotalDepensesMois_SumsValidatedCurrentMonthOnly()
+        {
+            const int societeId = 1;
+            var now = DateTime.Now;
+            var debutMois = new DateTime(now.Year, now.Month, 1);
+
+            await using var context = CreateInMemoryContext();
+            SeedSocieteWithClients(context, societeId);
+
+            context.Depenses.AddRange(
+                new Depense
+                {
+                    IdSociete = societeId,
+                    Libelle = "Validee mois",
+                    Montant = 100m,
+                    MontantDevisePrincipale = 100m,
+                    DateDepense = debutMois.AddDays(2),
+                    Statut = DepenseStatuts.Validee,
+                    IdUtilisateurCreateur = 1
+                },
+                new Depense
+                {
+                    IdSociete = societeId,
+                    Libelle = "En attente",
+                    Montant = 50m,
+                    MontantDevisePrincipale = 50m,
+                    DateDepense = debutMois.AddDays(3),
+                    Statut = DepenseStatuts.EnAttente,
+                    IdUtilisateurCreateur = 1
+                },
+                new Depense
+                {
+                    IdSociete = societeId,
+                    Libelle = "Mois precedent",
+                    Montant = 80m,
+                    MontantDevisePrincipale = 80m,
+                    DateDepense = debutMois.AddMonths(-1),
+                    Statut = DepenseStatuts.Validee,
+                    IdUtilisateurCreateur = 1
+                },
+                new Depense
+                {
+                    IdSociete = 99,
+                    Libelle = "Autre societe",
+                    Montant = 200m,
+                    MontantDevisePrincipale = 200m,
+                    DateDepense = debutMois.AddDays(1),
+                    Statut = DepenseStatuts.Validee,
+                    IdUtilisateurCreateur = 1
+                });
+            await context.SaveChangesAsync();
+
+            var service = CreateDashboardService(context);
+            var dashboard = await service.GetDashboardDataAsync(societeId);
+
+            Assert.Equal(100m, dashboard.MontantTotalDepensesMois);
+        }
+
         private static DashboardService CreateDashboardService(KenergieDbContext context)
         {
             var scope = new SocieteClientScopeService(context, NullLogger<SocieteClientScopeService>.Instance);

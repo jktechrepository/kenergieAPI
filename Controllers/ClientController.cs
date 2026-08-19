@@ -695,6 +695,7 @@ namespace Kenergie.Controllers
                 CodeCons = client.CodeCons,
                 Statut = client.Statut,
                 IsActif = client.IsActif,
+                DateDerniereReactivation = client.DateDerniereReactivation,
                 IdAxe = client.IdAxe,
                 DateCreation = client.DateCreation,
                 Usages = new List<ClientUsageInfoDto>()

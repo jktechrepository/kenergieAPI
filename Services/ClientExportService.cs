@@ -80,10 +80,9 @@ namespace Kenergie.Services
                         .ThenInclude(u => u.CategorieClient)
                 .Include(c => c.Axe)
                     .ThenInclude(a => a.Cabine)
-                .Where(c => c.Statut == true && 
-                           c.IsActif == true &&
+                .Where(c => c.Statut == true &&
                            c.ClientsUsages != null &&
-                           c.ClientsUsages.Any(cu => cu.Usage != null && 
+                           c.ClientsUsages.Any(cu => cu.Usage != null &&
                                                      cu.Usage.CategorieClient != null &&
                                                      cu.Usage.CategorieClient.IdSociete == idSociete &&
                                                      cu.Statut == true &&
@@ -107,8 +106,12 @@ namespace Kenergie.Services
                     (c.CodeCons ?? string.Empty).ToLower().Contains(term));
             }
 
-            // Inclure les clients inactifs si demandé (par défaut non)
-            if (!request.IncludeInactive)
+            // Filtre IsActif : explicite > IncludeInactive > défaut actifs
+            if (request.HasIsActifFilter)
+            {
+                query = query.Where(c => c.IsActif == request.ActifFilterValue);
+            }
+            else if (!request.IncludeInactive)
             {
                 query = query.Where(c => c.IsActif == true);
             }

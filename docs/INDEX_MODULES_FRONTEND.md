@@ -107,7 +107,7 @@ Ce document répertorie toutes les documentations API disponibles pour les équi
 - Contrainte phase 1 : paiement dans la même devise que la facture
 
 **Endpoints principaux :**
-- `GET /api/Devise/devises` - Lister les devises actives (lecture : Caissier, Financier, Admin…)
+- `GET /api/Devise/devises` - Lister les devises actives (lecture : Caissier, Financier, Admin…, **Client** = société liée au compte)
 - `GET /api/Devise/preview-conversion` - Estimation de conversion (idem lecture)
 - `POST /api/Devise/devises` - Créer une devise (Admin / Gérant / Super-Admin)
 - `PUT /api/Devise/devises/{id}` - Modifier une devise (Admin / Gérant / Super-Admin)
@@ -137,6 +137,27 @@ Ce document répertorie toutes les documentations API disponibles pour les équi
 
 **Guide recette confirmation :** [`GUIDE_TEST_FLEXPAY_CONFIRMATION.md`](./GUIDE_TEST_FLEXPAY_CONFIRMATION.md)
 - `CRUD /api/InfoPaiementSociete` - Config marchand
+
+---
+
+### 6bis. Notifications in-app (SignalR mobile)
+**Fichier :** [`FRONTEND_INTEGRATION_NOTIFICATIONS_MOBILE.md`](./FRONTEND_INTEGRATION_NOTIFICATIONS_MOBILE.md)
+
+**Description :** Connexion Flutter au hub `/hubs/notifications`, réception `ReceiveNotification`, marquage lu, hydratation REST.
+
+**Fonctionnalités principales :**
+- JWT + `accessTokenFactory` / query `access_token`
+- Événement canonique `ReceiveNotification`
+- `MarkNotificationAsRead` (persisté en base)
+- Pattern REST (historique) + SignalR (live) + FCM (background)
+
+**Hub / endpoints :**
+- Hub `GET/WS` `{BASE}/hubs/notifications`
+- `GET /api/Notification/destinataire/{id}` — historique
+- `GET /api/Notification/destinataire/{id}/non-lues` — badge
+- `PUT /api/Notification/{id}/marquer-lue` — fallback REST
+
+**Guide SignalR web (Vue/React) :** [`SIGNALR_FRONTEND_GUIDE.md`](./SIGNALR_FRONTEND_GUIDE.md)
 
 ---
 

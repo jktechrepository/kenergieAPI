@@ -3,6 +3,7 @@ using System;
 using Kenergie.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Kenergie.Migrations
 {
     [DbContext(typeof(KenergieDbContext))]
-    partial class KenergieDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260815095720_AjoutDateDerniereReactivationClient")]
+    partial class AjoutDateDerniereReactivationClient
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1321,10 +1323,6 @@ namespace Kenergie.Migrations
                         .HasMaxLength(36)
                         .HasColumnType("varchar(36)");
 
-                    b.Property<string>("CodeDeviseFacture")
-                        .HasMaxLength(3)
-                        .HasColumnType("varchar(3)");
-
                     b.Property<string>("CodeDevisePaiement")
                         .HasMaxLength(3)
                         .HasColumnType("varchar(3)");
@@ -1377,9 +1375,6 @@ namespace Kenergie.Migrations
                     b.Property<decimal>("MontantPaye")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal?>("MontantPayeDevisePaiement")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal?>("MontantPayeDevisePrincipale")
                         .HasColumnType("decimal(18,2)");
 
@@ -1397,9 +1392,6 @@ namespace Kenergie.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
-
-                    b.Property<decimal?>("TauxFactureVersDevisePaiement")
-                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal?>("TauxVersDevisePrincipale")
                         .HasColumnType("decimal(18,6)");
@@ -1435,17 +1427,8 @@ namespace Kenergie.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    b.Property<string>("CodeDeviseFacture")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("varchar(3)");
-
                     b.Property<string>("CodeDevisePaiement")
                         .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("varchar(3)");
-
-                    b.Property<string>("CodeDevisePrincipale")
                         .HasMaxLength(3)
                         .HasColumnType("varchar(3)");
 
@@ -1488,12 +1471,6 @@ namespace Kenergie.Migrations
                     b.Property<decimal>("Montant")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("MontantFacture")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("MontantFactureDevisePrincipale")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("OrderNumber")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
@@ -1511,12 +1488,6 @@ namespace Kenergie.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
-
-                    b.Property<decimal?>("TauxFactureVersDevisePrincipale")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal?>("TauxFactureVersPaiement")
-                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Telephone")
                         .HasMaxLength(20)

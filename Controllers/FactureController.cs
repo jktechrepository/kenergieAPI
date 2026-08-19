@@ -590,7 +590,10 @@ namespace Kenergie.Controllers
         // POST: api/Facture/societe/{idSociete}/diffusion/bulk
         [HttpPost("societe/{idSociete}/diffusion/bulk")]
         [Permission("Facture.Update")]
-        public async Task<ActionResult<DiffusionFactureBulkResponseDto>> DiffuserToutesFacturesEnAttente(int idSociete)
+        public async Task<ActionResult<DiffusionFactureBulkResponseDto>> DiffuserToutesFacturesEnAttente(
+            int idSociete,
+            [FromQuery] int? annee = null,
+            [FromQuery] int? mois = null)
         {
             var startTime = DateTime.Now;
 
@@ -603,12 +606,37 @@ namespace Kenergie.Controllers
                     return NotFound(new { message = "Société non trouvée" });
                 }
 
-                // Récupérer toutes les factures en attente de diffusion pour cette société
+                if (annee.HasValue != mois.HasValue)
+                {
+                    return BadRequest(new { message = "Fournir annee et mois ensemble, ou aucun des deux pour utiliser le mois précédent par défaut." });
+                }
+
+                int anneeResolue;
+                int moisResolu;
+                if (!annee.HasValue && !mois.HasValue)
+                {
+                    var previous = DateTime.Now.AddMonths(-1);
+                    anneeResolue = previous.Year;
+                    moisResolu = previous.Month;
+                }
+                else
+                {
+                    anneeResolue = annee!.Value;
+                    moisResolu = mois!.Value;
+                    if (moisResolu < 1 || moisResolu > 12)
+                    {
+                        return BadRequest(new { message = "Le mois doit être compris entre 1 et 12." });
+                    }
+                }
+
+                // Factures en attente pour la société et la période (MoisEmission / AnneesEmission)
                 var facturesEnAttente = await _context.Factures
                     .Include(f => f.Usage)
                         .ThenInclude(u => u.CategorieClient)
                     .Where(f => f.Statut == true &&
                                 f.EstDiffusee == false &&
+                                f.MoisEmission == moisResolu &&
+                                f.AnneesEmission == anneeResolue &&
                                 f.Usage != null &&
                                 f.Usage.CategorieClient != null &&
                                 f.Usage.CategorieClient.IdSociete == idSociete)
@@ -622,11 +650,13 @@ namespace Kenergie.Controllers
                     {
                         Success = true,
                         SocieteId = idSociete,
+                        Annee = anneeResolue,
+                        Mois = moisResolu,
                         TotalFactures = 0,
                         FacturesEnQueue = 0,
                         FacturesEchecs = 0,
                         Duree = $"{(DateTime.Now - startTime).TotalSeconds:F2}s",
-                        Message = "Aucune facture en attente de diffusion pour cette société"
+                        Message = $"Aucune facture en attente de diffusion pour la société {idSociete} sur la période {moisResolu:D2}/{anneeResolue}"
                     });
                 }
 
@@ -634,6 +664,8 @@ namespace Kenergie.Controllers
                 {
                     Success = true,
                     SocieteId = idSociete,
+                    Annee = anneeResolue,
+                    Mois = moisResolu,
                     TotalFactures = facturesEnAttente.Count
                 };
 
@@ -741,29 +773,29 @@ namespace Kenergie.Controllers
 
                 if (response.FacturesEnQueue == response.TotalFactures)
                 {
-                    response.Message = $"Toutes les {response.FacturesEnQueue} facture(s) ont été mises en queue pour diffusion";
+                    response.Message = $"Toutes les {response.FacturesEnQueue} facture(s) de {moisResolu:D2}/{anneeResolue} ont été mises en queue pour diffusion";
                 }
                 else if (response.FacturesEnQueue > 0)
                 {
-                    response.Message = $"{response.FacturesEnQueue} facture(s) mise(s) en queue, {response.FacturesEchecs} échec(s)";
+                    response.Message = $"{response.FacturesEnQueue} facture(s) de {moisResolu:D2}/{anneeResolue} mise(s) en queue, {response.FacturesEchecs} échec(s)";
                 }
                 else
                 {
                     response.Success = false;
-                    response.Message = $"Aucune facture n'a pu être mise en queue. {response.FacturesEchecs} échec(s)";
+                    response.Message = $"Aucune facture n'a pu être mise en queue pour {moisResolu:D2}/{anneeResolue}. {response.FacturesEchecs} échec(s)";
                 }
 
                 // Audit global
                 var ctxGlobal = this.GetAuditContext();
                 await _auditService.LogCreateAsync(
-                    new { SocieteId = idSociete, TotalFactures = response.TotalFactures, FacturesEnQueue = response.FacturesEnQueue },
+                    new { SocieteId = idSociete, Annee = anneeResolue, Mois = moisResolu, TotalFactures = response.TotalFactures, FacturesEnQueue = response.FacturesEnQueue },
                     ctxGlobal.UserId,
                     ctxGlobal.UserName,
                     ctxGlobal.UserRole,
                     ctxGlobal.IdSociete,
                     ctxGlobal.IpAddress,
                     ctxGlobal.UserAgent,
-                    $"Diffusion en masse de {response.FacturesEnQueue} facture(s) pour la société {idSociete}");
+                    $"Diffusion en masse de {response.FacturesEnQueue} facture(s) pour la société {idSociete} (période {moisResolu:D2}/{anneeResolue})");
 
                 if (response.Success && response.FacturesEnQueue > 0)
                 {

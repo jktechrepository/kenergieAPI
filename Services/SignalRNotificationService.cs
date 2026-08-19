@@ -310,18 +310,41 @@ namespace Kenergie.Services
         }
 
         /// <summary>
-        /// Envoyer une notification personnalisée à un utilisateur
+        /// Envoyer une notification personnalisée à un utilisateur.
+        /// Émet <c>ReceiveNotification</c> (canonique) + <c>ReceiveCustomNotification</c> (compat dépréciée).
         /// </summary>
         public async Task SendCustomNotificationAsync(int userId, string title, string message, string type = "info")
         {
             try
             {
-                await _hubContext.Clients.User(userId.ToString()).SendAsync("ReceiveCustomNotification", new { title, message, type });
-                _logger.LogInformation($"📱 Custom notification sent to user {userId}");
+                var notification = new Notification
+                {
+                    IdNotification = 0,
+                    Titre = title,
+                    Contenu = message,
+                    TypeNotification = string.IsNullOrWhiteSpace(type) ? "INFO" : type,
+                    EstLue = false,
+                    EstActive = true,
+                    DateCreation = DateTime.UtcNow,
+                    IdDestinataire = userId,
+                    CanalUtilise = "InApp",
+                    Priorite = "INFO",
+                    StatutEnvoi = "Envoye"
+                };
+
+                await SendNotificationToUserAsync(userId, notification);
+
+                // Compat apps qui écoutent encore l'ancien événement
+                await _hubContext.Clients.User(userId.ToString())
+                    .SendAsync("ReceiveCustomNotification", new { title, message, type });
+
+                _logger.LogInformation(
+                    "Custom notification sent to user {UserId} (ReceiveNotification + ReceiveCustomNotification compat)",
+                    userId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"❌ Error sending custom notification to user {userId}");
+                _logger.LogError(ex, "Error sending custom notification to user {UserId}", userId);
             }
         }
 

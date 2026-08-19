@@ -107,14 +107,37 @@ namespace Kenergie.Controllers
 
         /// <summary>Statut d'un paiement électronique en attente.</summary>
         [HttpGet("electronique/{idPending:int}")]
-        [Authorize(Roles = "Super-Admin,Admin,Gerant,Financier,Caissier,Responsable Commercial,Agent Direction Commercial")]
+        [Authorize(Roles = "Super-Admin,Admin,Gerant,Financier,Caissier,Responsable Commercial,Agent Direction Commercial,Client")]
         public async Task<ActionResult<PaiementElectroniquePendingDto>> GetPendingElectronique(int idPending)
         {
-            int? filter = _currentUserService.IsSuperAdmin ? null : _currentUserService.SocieteId;
-            var pending = await _paiementElectroniqueService.GetPendingAsync(idPending, filter);
-            if (pending == null)
-                return NotFound(new { message = "Paiement électronique introuvable." });
-            return Ok(pending);
+            try
+            {
+                var isClient = IsClientRole();
+                int? filter = _currentUserService.IsSuperAdmin || isClient
+                    ? null
+                    : (_currentUserService.SocieteId > 0 ? _currentUserService.SocieteId : null);
+
+                var pending = await _paiementElectroniqueService.GetPendingForCallerAsync(
+                    idPending,
+                    filter,
+                    _currentUserService.UserId > 0 ? _currentUserService.UserId : null,
+                    isClient);
+
+                if (pending == null)
+                    return NotFound(new { message = "Paiement électronique introuvable." });
+                return Ok(pending);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
+        }
+
+        private bool IsClientRole()
+        {
+            return string.Equals(_currentUserService.UserRole, "Client", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(_currentUserService.PrimaryRole, "Client", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(_currentUserService.GetUserRole(), "Client", StringComparison.OrdinalIgnoreCase);
         }
 
         // GET: api/Paiement/5

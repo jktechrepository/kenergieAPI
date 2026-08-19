@@ -164,10 +164,11 @@ namespace Kenergie.Services
                 MontantDepensesEnAttente = montantDepensesEnAttente,
                 TauxRecouvrement = tauxRecouvrement,
                 VariationCAMoisPrecedent = variationCA,
+                MontantTotalFacturesMoisPrecedent = facturesMoisPrecedent,
                 TotalFacturesMois = facturesMois.Count,
                 FacturesPayeesMois = facturesMois.Count(f => f.Statut),
                 SyntheseUsd = await _usdEnrichment.BuildSocieteStatistiquesSyntheseUsdAsync(
-                    idSociete, caMois, montantArrieres)
+                    idSociete, caMois, montantArrieres, montantDepensesMois, facturesMoisPrecedent)
             };
         }
 

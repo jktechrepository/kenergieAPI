@@ -73,6 +73,44 @@ namespace Kenergie.Tests
         }
 
         [Fact]
+        public async Task ProcessCallbackAsync_CrossCurrencyPending_CreatesPaiementWithInvoiceAmount()
+        {
+            await using var context = CreateInMemoryContext();
+            var pending = await SeedPendingAsync(
+                context,
+                MethodeFlexPay.MobileMoney,
+                pendingMontant: 0.50m,
+                pendingMontantFacture: 1000m,
+                codeDevisePaiement: "USD",
+                codeDeviseFacture: "CDF",
+                tauxFactureVersPaiement: 0.0005m);
+
+            var service = CreateService(context);
+            var result = await service.ProcessCallbackAsync(
+                new FlexPayCallbackDto
+                {
+                    Code = "0",
+                    OrderNumber = pending.OrderNumber,
+                    Reference = pending.Reference,
+                    ProviderReference = "OP-USD-1",
+                    Amount = "0.50",
+                    Currency = "USD"
+                },
+                "{}",
+                null,
+                "test");
+
+            Assert.True(result.Success);
+
+            var paiement = await context.Paiements.SingleAsync();
+            Assert.Equal(1000m, paiement.MontantPaye);
+            Assert.Equal(0.50m, paiement.MontantPayeDevisePaiement);
+            Assert.Equal("CDF", paiement.CodeDeviseFacture);
+            Assert.Equal("USD", paiement.CodeDevisePaiement);
+            Assert.Equal(0.0005m, paiement.TauxFactureVersDevisePaiement);
+        }
+
+        [Fact]
         public async Task ProcessCallbackAsync_Code0WithSnakeCaseProviderReferenceInRawJson_CreatesPaiement()
         {
             await using var context = CreateInMemoryContext();
@@ -208,6 +246,133 @@ namespace Kenergie.Tests
             Assert.Equal(1, await context.Paiements.CountAsync());
         }
 
+        [Fact]
+        public async Task GetPendingForCallerAsync_ClientOwner_ReturnsPending()
+        {
+            await using var context = CreateInMemoryContext();
+            var pending = await SeedPendingAsync(context, MethodeFlexPay.MobileMoney);
+            context.Utilisateurs.Add(new Utilisateur
+            {
+                IdUtilisateur = 10,
+                NomComplet = "User Client A",
+                MotDePasseHash = "x",
+                IdClient = 1
+            });
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+            var dto = await service.GetPendingForCallerAsync(
+                pending.IdPaiementElectroniqueEnAttente,
+                idSocieteFilter: null,
+                idUtilisateur: 10,
+                isClientRole: true);
+
+            Assert.NotNull(dto);
+            Assert.Equal(pending.IdPaiementElectroniqueEnAttente, dto!.IdPending);
+        }
+
+        [Fact]
+        public async Task GetPendingForCallerAsync_ClientOther_ThrowsUnauthorized()
+        {
+            await using var context = CreateInMemoryContext();
+            var pending = await SeedPendingAsync(context, MethodeFlexPay.MobileMoney);
+            context.Clients.Add(new Client
+            {
+                IdClient = 2,
+                NomClient = "Autre",
+                AdresseClient = "Adr",
+                Statut = true,
+                IsActif = true
+            });
+            context.Utilisateurs.Add(new Utilisateur
+            {
+                IdUtilisateur = 20,
+                NomComplet = "User Client B",
+                MotDePasseHash = "x",
+                IdClient = 2
+            });
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                service.GetPendingForCallerAsync(
+                    pending.IdPaiementElectroniqueEnAttente,
+                    idSocieteFilter: null,
+                    idUtilisateur: 20,
+                    isClientRole: true));
+        }
+
+        [Fact]
+        public async Task GetPendingForCallerAsync_Staff_FiltersBySociete()
+        {
+            await using var context = CreateInMemoryContext();
+            var pending = await SeedPendingAsync(context, MethodeFlexPay.MobileMoney);
+            var service = CreateService(context);
+
+            var ok = await service.GetPendingForCallerAsync(
+                pending.IdPaiementElectroniqueEnAttente,
+                idSocieteFilter: 1,
+                idUtilisateur: null,
+                isClientRole: false);
+            Assert.NotNull(ok);
+
+            var missing = await service.GetPendingForCallerAsync(
+                pending.IdPaiementElectroniqueEnAttente,
+                idSocieteFilter: 999,
+                idUtilisateur: null,
+                isClientRole: false);
+            Assert.Null(missing);
+        }
+
+        [Fact]
+        public async Task InitierAsync_WhenPaymentCurrencyDiffersFromInvoice_ConvertsAndStoresSnapshot()
+        {
+            await using var context = CreateInMemoryContext();
+            await SeedBaseDataAsync(context, 1000m, "CDF");
+
+            var flexPayHttp = new Mock<IFlexPayHttpService>();
+            flexPayHttp
+                .Setup(h => h.InitierMobileMoneyAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    0.50m,
+                    "USD",
+                    It.IsAny<string>(),
+                    default))
+                .ReturnsAsync(new FlexPayInitResult
+                {
+                    Accepted = true,
+                    Code = "0",
+                    Message = "OK",
+                    OrderNumber = "FP-INIT-USD"
+                });
+
+            var service = CreateService(context, flexPayHttp.Object);
+            var dto = new InitierPaiementElectroniqueDto
+            {
+                IdClientFacture = 1,
+                Methode = MethodeFlexPay.MobileMoney,
+                Telephone = "243900000000",
+                CodeDevisePaiement = "USD",
+                Montant = 1000m
+            };
+
+            var result = await service.InitierAsync(dto, idSociete: 1, idUtilisateur: null);
+
+            Assert.Equal("USD", result.CodeDevisePaiement);
+            Assert.Equal(0.50m, result.MontantFlexPay);
+
+            var pending = await context.PaiementsElectroniquesEnAttente.SingleAsync();
+            Assert.Equal(1000m, pending.MontantFacture);
+            Assert.Equal(0.50m, pending.Montant);
+            Assert.Equal("CDF", pending.CodeDeviseFacture);
+            Assert.Equal("USD", pending.CodeDevisePaiement);
+            Assert.Equal(0.0005m, pending.TauxFactureVersPaiement);
+        }
+
         private static PaiementElectroniqueService CreateService(
             KenergieDbContext context,
             IFlexPayHttpService? flexPayHttp = null)
@@ -225,6 +390,30 @@ namespace Kenergie.Tests
 
             var deviseMock = new Mock<IDeviseConversionService>();
             deviseMock.Setup(s => s.GetCodeDevisePrincipaleAsync(It.IsAny<int>())).ReturnsAsync("CDF");
+            deviseMock
+                .Setup(s => s.ConvertirAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<DateTime>()))
+                .ReturnsAsync((int _, string source, string cible, decimal montant, DateTime date) =>
+                {
+                    source = source.ToUpperInvariant();
+                    cible = cible.ToUpperInvariant();
+                    decimal taux = source == cible
+                        ? 1m
+                        : source == "CDF" && cible == "USD"
+                            ? 0.0005m
+                            : source == "USD" && cible == "CDF"
+                                ? 2000m
+                                : 1m;
+
+                    return new ConversionResult
+                    {
+                        CodeDeviseSource = source,
+                        CodeDeviseCible = cible,
+                        Taux = taux,
+                        MontantSource = montant,
+                        MontantConverti = Math.Round(montant * taux, 2, MidpointRounding.AwayFromZero),
+                        DateReference = date
+                    };
+                });
             deviseMock
                 .Setup(s => s.ConvertirVersPrincipaleAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<DateTime>()))
                 .ReturnsAsync((int _, string code, decimal montant, DateTime date) => new ConversionResult
@@ -250,6 +439,7 @@ namespace Kenergie.Tests
             var options = Options.Create(new FlexPayOptions
             {
                 Enabled = true,
+                CallbackBaseUrl = "https://api.test.local/api/FlexPay/callback",
                 RequireProviderReferenceForMobileMoney = true,
                 MinSecondsBeforeFinalize = 0,
                 MontantTolerance = 0.05m
@@ -257,6 +447,7 @@ namespace Kenergie.Tests
 
             return new PaiementElectroniqueService(
                 context,
+                deviseMock.Object,
                 flexPayHttp ?? new Mock<IFlexPayHttpService>().Object,
                 infoPaiement.Object,
                 paiementRepo,
@@ -267,9 +458,57 @@ namespace Kenergie.Tests
 
         private static async Task<PaiementElectroniqueEnAttente> SeedPendingAsync(
             KenergieDbContext context,
-            string methode)
+            string methode,
+            decimal pendingMontant = 500m,
+            decimal pendingMontantFacture = 500m,
+            string codeDevisePaiement = "CDF",
+            string codeDeviseFacture = "CDF",
+            decimal? tauxFactureVersPaiement = 1m)
         {
-            context.Societes.Add(new Societe { IdSociete = 1, Nom = "Test SA", Type = "Privée", Statut = true });
+            var cf = await SeedBaseDataAsync(context, 1000m, codeDeviseFacture);
+            var facture = await context.Factures.SingleAsync();
+
+            var pending = new PaiementElectroniqueEnAttente
+            {
+                IdSociete = 1,
+                IdClient = 1,
+                IdClientFacture = cf.IdClientFacture,
+                IdFacture = facture.IdFacture,
+                Montant = pendingMontant,
+                MontantFacture = pendingMontantFacture,
+                CodeDevisePaiement = codeDevisePaiement,
+                CodeDeviseFacture = codeDeviseFacture,
+                CodeDevisePrincipale = "CDF",
+                TauxFactureVersPaiement = tauxFactureVersPaiement,
+                TauxFactureVersDevisePrincipale = codeDeviseFacture == "CDF" ? 1m : 2000m,
+                MontantFactureDevisePrincipale = codeDeviseFacture == "CDF"
+                    ? pendingMontantFacture
+                    : Math.Round(pendingMontantFacture * 2000m, 2, MidpointRounding.AwayFromZero),
+                Methode = methode,
+                Reference = "KE-TESTREF001",
+                OrderNumber = "FP-ORDER-001",
+                Statut = StatutPaiementElectronique.EnAttente,
+                HoldExpireAt = DateTime.UtcNow.AddMinutes(15),
+                DateCreation = DateTime.UtcNow.AddSeconds(-30)
+            };
+            context.PaiementsElectroniquesEnAttente.Add(pending);
+            await context.SaveChangesAsync();
+            return pending;
+        }
+
+        private static async Task<ClientFacture> SeedBaseDataAsync(
+            KenergieDbContext context,
+            decimal factureMontant,
+            string codeDeviseFacture)
+        {
+            context.Societes.Add(new Societe
+            {
+                IdSociete = 1,
+                Nom = "Test SA",
+                Type = "Privée",
+                Statut = true,
+                CodeDevisePrincipale = "CDF"
+            });
             context.CategorieClients.Add(new CategorieClient
             {
                 IdCategorie = 1,
@@ -299,9 +538,9 @@ namespace Kenergie.Tests
                 IdUsage = 1,
                 MoisEmission = 5,
                 AnneesEmission = 2026,
-                Montant = 1_000m,
+                Montant = factureMontant,
                 Statut = true,
-                CodeDevisePrix = "CDF"
+                CodeDevisePrix = codeDeviseFacture
             };
             context.Factures.Add(facture);
             await context.SaveChangesAsync();
@@ -310,35 +549,18 @@ namespace Kenergie.Tests
             {
                 IdClient = 1,
                 IdFacture = facture.IdFacture,
-                Montant = 1_000m,
+                Montant = factureMontant,
                 MontantPaye = 0,
-                MontantDu = 1_000m,
+                MontantDu = factureMontant,
                 Mois = "05",
                 Annees = 2026,
-                CodeDevisePrix = "CDF",
+                CodeDevisePrix = codeDeviseFacture,
                 Statut = true
             };
             context.ClientFactures.Add(cf);
             await context.SaveChangesAsync();
 
-            var pending = new PaiementElectroniqueEnAttente
-            {
-                IdSociete = 1,
-                IdClient = 1,
-                IdClientFacture = cf.IdClientFacture,
-                IdFacture = facture.IdFacture,
-                Montant = 500m,
-                CodeDevisePaiement = "CDF",
-                Methode = methode,
-                Reference = "KE-TESTREF001",
-                OrderNumber = "FP-ORDER-001",
-                Statut = StatutPaiementElectronique.EnAttente,
-                HoldExpireAt = DateTime.UtcNow.AddMinutes(15),
-                DateCreation = DateTime.UtcNow.AddSeconds(-30)
-            };
-            context.PaiementsElectroniquesEnAttente.Add(pending);
-            await context.SaveChangesAsync();
-            return pending;
+            return cf;
         }
 
         private static KenergieDbContext CreateInMemoryContext()

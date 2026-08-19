@@ -147,6 +147,21 @@ builder.Services.AddAuthentication("Bearer")
             ValidateLifetime = true, // Valider l'expiration du token
             ClockSkew = TimeSpan.Zero // Pas de tolérance sur l'expiration
         };
+        // SignalR WebSockets : le JWT est passé en query ?access_token= (clients Flutter / JS)
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
